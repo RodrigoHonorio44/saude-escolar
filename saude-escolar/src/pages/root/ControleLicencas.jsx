@@ -1,0 +1,247 @@
+import { useEffect, useState, useMemo } from 'react';
+import { db } from '../../config/firebase'; // ✅ Ajustado para o seu caminho padrão
+import { collection, onSnapshot, doc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { DollarSign, Ban, Zap, ShieldCheck, Loader2, Calendar, Award, School } from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext'; // ✅ Para validar se é Root
+
+const ControleLicencas = () => {
+  const { user } = useAuth();
+  const [usuarios, setUsuarios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const PRECO_MENSAL = 150.00;
+
+  useEffect(() => {
+    // 🛡️ Filtro estrito: Aponta para 'users' e ignora outros roots
+    const q = query(
+      collection(db, "users"), 
+      where("role", "not-in", ["root", "admin_master"])
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const lista = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        // Normalização de exibição (Padrão R S)
+        nomeExibicao: doc.data().nome ? doc.data().nome.toLowerCase().split(' ').map(p => {
+          const excessoes = ['de', 'do', 'da', 'dos', 'das', 'e'];
+          if (p.length <= 2 && excessoes.includes(p)) return p;
+          return p.charAt(0).toUpperCase() + p.slice(1);
+        }).join(' ') : 'usuário sem nome'
+      }));
+      setUsuarios(lista);
+      setLoading(false);
+    }, (error) => {
+      console.error("Erro Master Panel:", error);
+      toast.error("Erro na sincronização de licenças");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // ✅ RENOVAÇÃO: ATIVA TODOS OS MÓDULOS E NORMALIZA DADOS
+  const renovarLicenca = async (id, nome, dias) => {
+    const toastId = toast.loading(`Renovando ${nome.toUpperCase()}...`);
+    try {
+      const novaData = new Date();
+      novaData.setDate(novaData.getDate() + dias);
+      
+      await updateDoc(doc(db, "users", id), {
+        licencaStatus: 'ativa',
+        statusLicenca: 'ativa',
+        dataExpiracao: novaData.toISOString(),
+        status: 'ativo',
+        ultimaRenovacao: serverTimestamp(),
+        // Liberação total da Sidebar conforme padrão 2026
+        "modulosSidebar.dashboard": true,
+        "modulosSidebar.atendimento": true,
+        "modulosSidebar.espelho": true,     
+        "modulosSidebar.pasta_digital": true,
+        "modulosSidebar.pacientes": true,
+        "modulosSidebar.saude_escolar": true,
+        "modulosSidebar.saude_inclusiva": true, 
+        "modulosSidebar.auditoria": true,    
+        "modulosSidebar.relatorios": true
+      });
+      
+      const textoPrazo = dias === 365 ? "1 ANO" : `${dias} DIAS`;
+      toast.success(`${nome.toUpperCase()} ATIVO POR ${textoPrazo}!`, { 
+        id: toastId, 
+        icon: '🚀',
+        style: { background: '#0f172a', color: '#fff', borderRadius: '15px' }
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao processar renovação", { id: toastId });
+    }
+  };
+
+  // ❌ BLOQUEIO: DESATIVA ACESSOS CRÍTICOS
+  const bloquearAcessoTotal = async (id, nome) => {
+    if (!window.confirm(`Bloquear acesso de ${nome.toUpperCase()}?`)) return;
+
+    try {
+      await updateDoc(doc(db, "users", id), { 
+        statusLicenca: 'bloqueada', 
+        status: 'bloqueado',
+        "modulosSidebar.dashboard": false,
+        "modulosSidebar.atendimento": false,
+        "modulosSidebar.saude_escolar": false,
+        "modulosSidebar.saude_inclusiva": false,
+        "modulosSidebar.relatorios": false
+      });
+      
+      toast(`Acesso de ${nome.toUpperCase()} suspenso!`, {
+        icon: '🚫',
+        style: { background: '#be123c', color: '#fff', borderRadius: '15px' }
+      });
+    } catch (err) {
+      toast.error("Erro ao suspender acesso");
+    }
+  };
+
+  const stats = useMemo(() => {
+    const ativos = usuarios.filter(u => 
+      u.statusLicenca === 'ativa' || u.status === 'ativo'
+    );
+    return {
+      totalAtivos: ativos.length,
+      faturamento: ativos.length * PRECO_MENSAL,
+      porcentagem: usuarios.length > 0 ? Math.round((ativos.length / usuarios.length) * 100) : 0
+    };
+  }, [usuarios]);
+
+  // Segurança: Bloqueia renderização se não for root
+  if (user?.role !== 'root') return <div className="p-10 text-rose-500 font-bold">ACESSO NEGADO.</div>;
+
+  if (loading) {
+    return (
+      <div className="h-96 flex flex-col items-center justify-center text-slate-400">
+        <Loader2 className="animate-spin mb-4 text-blue-600" size={40} />
+        <p className="font-black uppercase text-[10px] tracking-widest animate-pulse">
+          Sincronizando Camada Root...
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-700 p-2 md:p-6">
+      
+      {/* HEADER DE FATURAMENTO */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-[#0f172a] p-8 rounded-[40px] text-white shadow-2xl relative overflow-hidden group border border-white/5">
+          <div className="relative z-10">
+            <p className="text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Faturamento Previsto</p>
+            <h3 className="text-4xl font-black italic">
+              R$ {stats.faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </h3>
+          </div>
+          <DollarSign className="absolute -right-6 -bottom-6 text-white/5 group-hover:text-blue-500/10 transition-all duration-500 scale-110" size={140} />
+        </div>
+        
+        <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Unidades Licenciadas</p>
+          <div className="flex items-center gap-3">
+            <h3 className="text-4xl font-black text-slate-800">{stats.totalAtivos}</h3>
+            <span className="bg-emerald-50 text-emerald-600 text-[10px] px-2.5 py-1 rounded-full font-black uppercase italic">
+              {stats.porcentagem}% Ativas
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* TABELA MASTER */}
+      <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-sm">
+        <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/30">
+          <div>
+            <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xl italic">Controle Master BAENF</h3>
+            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Gestão de Licenciamento 2026</p>
+          </div>
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg">
+            <ShieldCheck size={14}/> Root Authorization: OK
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-white border-b border-slate-100">
+                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Unidade / Profissional</th>
+                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Expiração</th>
+                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Gestão de Prazo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {usuarios.map(u => {
+                const dataExp = u.dataExpiracao ? new Date(u.dataExpiracao) : null;
+                const isVencido = dataExp && dataExp < new Date();
+                const statusAtivo = u.statusLicenca === 'ativa' || u.status === 'ativo';
+
+                return (
+                  <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="p-6">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg ${statusAtivo ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
+                          {u.nome?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-700 text-sm uppercase italic group-hover:text-blue-600 transition-colors">
+                            {u.nomeExibicao}
+                          </p>
+                          <div className="flex items-center gap-1 text-[9px] text-blue-500 font-black uppercase">
+                             <School size={10} /> {u.unidade || 'sem unidade'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-6 text-center">
+                      <div className="flex flex-col items-center">
+                        <div className={`flex items-center gap-1 text-xs font-black px-3 py-1 rounded-xl shadow-sm ${isVencido ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
+                          <Calendar size={12} />
+                          {dataExp ? dataExp.toLocaleDateString('pt-BR') : 'PENDENTE'}
+                        </div>
+                        <span className={`text-[8px] font-black uppercase mt-1.5 italic ${statusAtivo ? 'text-emerald-500' : 'text-rose-400'}`}>
+                          {statusAtivo ? '● Licença Ativa' : '○ Suspensa'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-6">
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {[30, 90, 180].map((dias) => (
+                          <button 
+                            key={dias}
+                            onClick={() => renovarLicenca(u.id, u.nome, dias)} 
+                            className="flex items-center gap-1 bg-white border-2 border-slate-100 text-slate-600 px-3 py-2 rounded-xl text-[9px] font-black uppercase hover:border-emerald-500 hover:text-emerald-600 transition-all active:scale-95 shadow-sm"
+                          >
+                            <Zap size={10} /> {dias}D
+                          </button>
+                        ))}
+                        <button 
+                          onClick={() => renovarLicenca(u.id, u.nome, 365)} 
+                          className="flex items-center gap-1 bg-amber-50 text-amber-600 border-2 border-amber-100 px-3 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-amber-600 hover:text-white transition-all active:scale-95 shadow-sm"
+                        >
+                          <Award size={10} /> 1 ANO
+                        </button>
+                        <div className="w-px h-8 bg-slate-100 mx-1"></div>
+                        <button 
+                          onClick={() => bloquearAcessoTotal(u.id, u.nome)} 
+                          className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                        >
+                          <Ban size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ControleLicencas;
