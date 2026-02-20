@@ -1,53 +1,54 @@
 import { useEffect, useState } from 'react';
 import { db, auth } from '../../../config/firebase'; 
-import { sendPasswordResetEmail } from 'firebase/auth'; 
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, where, deleteField, serverTimestamp, addDoc } from 'firebase/firestore'; 
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { 
-  Users, Trash2, CheckCircle, XCircle, Search, 
-  LayoutDashboard, UserRound, Stethoscope, ClipboardList, Lock, FolderSearch,
-  LogOut, HeartPulse, BarChart3, KeyRound, Contact,
-  Accessibility, Building2, Eraser, ShieldCheck
+  collection, onSnapshot, doc, updateDoc, query, 
+  where, serverTimestamp, addDoc, Timestamp, orderBy 
+} from 'firebase/firestore'; 
+import { 
+  Search, LogOut, ShieldCheck, UserMinus, Loader2, KeyRound, School
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
-// 🟦 DESIGN SYSTEM DE DIMENSÕES (Ajuste aqui e muda em tudo)
 const UI = {
-  // Container principal com respiro inteligente
   container: "w-full max-w-[1600px] mx-auto p-[clamp(0.5rem,2vw,2rem)] space-y-6",
-  
-  // Cards com arredondamento que se adapta
   card: "bg-white rounded-[clamp(1rem,3vw,2.5rem)] shadow-sm border border-slate-100 overflow-hidden",
-  
-  // Tipografia Dinâmica (Ajusta o tamanho da fonte sozinho)
   title: "text-[clamp(1.1rem,2.5vw,1.7rem)] font-black text-slate-800 uppercase italic leading-none",
   label: "text-[clamp(0.6rem,1vw,0.75rem)] font-bold uppercase tracking-widest text-slate-400",
   name: "text-[clamp(0.75rem,1.2vw,0.95rem)] font-black text-slate-700 uppercase italic tracking-tight",
-  
-  // Botões e Espaçamentos
   padding: "p-[clamp(0.75rem,2vw,2rem)]",
   buttonAction: "p-[clamp(0.4rem,1vw,0.7rem)] rounded-[clamp(0.5rem,1vw,1rem)] transition-all flex items-center justify-center",
 };
 
 const GestaoUsuarios = () => {
   const [usuarios, setUsuarios] = useState([]);
+  const [unidades, setUnidades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState('');
+  const [escolaSelecionada, setEscolaSelecionada] = useState('todas');
 
+  // CARREGA USUÁRIOS E UNIDADES
   useEffect(() => {
-    const q = query(collection(db, "usuarios"), where("role", "!=", "root"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsuarios(docs);
+    // Busca Unidades para o Select
+    const qUnidades = query(collection(db, "unidades"), orderBy("nome", "asc"));
+    const unsubUnidades = onSnapshot(qUnidades, (snap) => {
+      setUnidades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // Busca Usuários
+    const qUsers = query(collection(db, "users"), where("role", "!=", "root"));
+    const unsubUsers = onSnapshot(qUsers, (snapshot) => {
+      setUsuarios(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    return () => { unsubUnidades(); unsubUsers(); };
   }, []);
 
-  // --- FUNÇÕES DE LOGICA (IDÊNTICAS ÀS SUAS) ---
   const registrarLog = async (usuarioNome, acao) => {
     try {
       await addDoc(collection(db, "logs_gestao"), {
-        admin: "Rodrigo Root",
+        admin: "rodrigo root",
         usuarioAfetado: usuarioNome.toLowerCase(),
         acao: acao.toLowerCase(),
         data: serverTimestamp()
@@ -56,153 +57,182 @@ const GestaoUsuarios = () => {
   };
 
   const resetarSenha = async (email, nome) => {
-    if (!email) return toast.error("E-mail não localizado.");
-    if (window.confirm(`Resetar senha de ${nome}?`)) {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      registrarLog(nome, "reset de senha enviado");
+      toast.success(`E-MAIL DE RESET ENVIADO PARA ${nome.toUpperCase()}`);
+    } catch (e) { toast.error("ERRO AO ENVIAR RESET"); }
+  };
+
+  const renovarLicenca = async (id, nome, dias) => {
+    try {
+      const novaData = new Date();
+      novaData.setDate(novaData.getDate() + dias);
+      await updateDoc(doc(db, "users", id), {
+        dataExpiracao: Timestamp.fromDate(novaData),
+        status: 'ativo',
+        licencaStatus: 'ativa',
+        ultimaRenovacao: serverTimestamp()
+      });
+      registrarLog(nome, `renovacao ${dias} dias`);
+      toast.success(`LICENÇA DE ${nome.toUpperCase()} RENOVADA!`);
+    } catch (e) { toast.error("ERRO NA RENOVAÇÃO"); }
+  };
+
+  const expulsarUsuario = async (id, nome) => {
+    if (window.confirm(`EXPULSAR DEFINITIVAMENTE ${nome.toUpperCase()}?`)) {
       try {
-        await sendPasswordResetEmail(auth, email);
-        registrarLog(nome, "Reset de senha");
-        toast.success("E-mail enviado");
-      } catch (e) { toast.error("Erro ao enviar"); }
+        await updateDoc(doc(db, "users", id), { 
+          status: 'bloqueado',
+          licencaStatus: 'bloqueada',
+          currentSessionId: "" 
+        });
+        registrarLog(nome, "expulsao definitiva");
+        toast.error("USUÁRIO EXPULSO");
+      } catch (e) { toast.error("ERRO AO EXPULSAR"); }
     }
   };
 
   const derrubarSessao = async (id, nome) => {
-    if (window.confirm(`Derrubar sessão de ${nome}?`)) {
-      try {
-        await updateDoc(doc(db, "usuarios", id), { currentSessionId: "" });
-        registrarLog(nome, "Sessão derrubada");
-        toast.success("Usuário desconectado");
-      } catch (e) { toast.error("Erro"); }
-    }
-  };
-
-  const toggleModulo = async (userId, modulo, valorAtual) => {
     try {
-      await updateDoc(doc(db, "usuarios", userId), { [`modulosSidebar.${modulo}`]: !valorAtual });
-      toast.success("Módulo atualizado");
-    } catch (e) { toast.error("Erro"); }
+      await updateDoc(doc(db, "users", id), { currentSessionId: "" });
+      registrarLog(nome, "sessao derrubada");
+      toast.success("SESSÃO ENCERRADA");
+    } catch (e) { toast.error("ERRO AO DERRUBAR"); }
   };
 
-  const alternarStatus = async (id, statusAtual, nome) => {
-    const novoStatus = statusAtual === 'ativo' ? 'bloqueado' : 'ativo';
-    try {
-      await updateDoc(doc(db, "usuarios", id), { 
-        status: novoStatus,
-        statusLicenca: novoStatus === 'ativo' ? 'ativa' : 'bloqueada',
-        "modulosSidebar.dashboard": novoStatus === 'ativo'
-      });
-      registrarLog(nome, `Status para ${novoStatus}`);
-      toast.success(`${nome} ${novoStatus}`);
-    } catch (e) { toast.error("Erro"); }
-  };
-
-  const usuariosFiltrados = usuarios.filter(u => 
-    u.nome?.toLowerCase().includes(filtro.toLowerCase()) ||
-    u.escolaId?.toLowerCase().includes(filtro.toLowerCase())
-  );
+  // FILTRAGEM COMBINADA (NOME + ESCOLA)
+  const usuariosFiltrados = usuarios.filter(u => {
+    const matchesFiltro = u.nome?.toLowerCase().includes(filtro.toLowerCase()) || u.email?.toLowerCase().includes(filtro.toLowerCase());
+    const matchesEscola = escolaSelecionada === 'todas' || u.unidadeId === escolaSelecionada;
+    return matchesFiltro && matchesEscola;
+  });
 
   return (
     <div className={UI.container}>
       <Toaster position="top-right" />
       
-      {/* HEADER DINÂMICO */}
       <div className={`${UI.card} ${UI.padding}`}>
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="bg-slate-900 text-white p-[clamp(0.8rem,1.5vw,1.2rem)] rounded-2xl shadow-xl shrink-0">
+            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl">
               <ShieldCheck size={32} />
             </div>
             <div>
-              <h2 className={UI.title}>Acessos Master</h2>
-              <p className={UI.label}>Gestão de Sessões e Permissões</p>
+              <h2 className={UI.title}>Gestão de Acessos</h2>
+              <p className={UI.label}>Monitoramento R S</p>
             </div>
           </div>
           
-          <div className="relative w-full lg:max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" placeholder="Buscar profissional..."
-              className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-xs shadow-inner focus:ring-2 ring-blue-100"
-              value={filtro} onChange={(e) => setFiltro(e.target.value)}
-            />
+          <div className="flex flex-col md:flex-row gap-4 w-full lg:max-w-2xl">
+            {/* SELECT DE UNIDADES */}
+            <div className="relative flex-1">
+              <School className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <select 
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-xs appearance-none cursor-pointer"
+                value={escolaSelecionada}
+                onChange={(e) => setEscolaSelecionada(e.target.value)}
+              >
+                <option value="todas">TODAS AS UNIDADES</option>
+                {unidades.map(un => (
+                  <option key={un.id} value={un.unidadeId}>{un.nome.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* BUSCA POR NOME */}
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" placeholder="BUSCAR NOME..."
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-xs uppercase"
+                value={filtro} onChange={(e) => setFiltro(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* TABELA DINÂMICA */}
       <div className={UI.card}>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className={`${UI.padding} ${UI.label}`}>Profissional / Status</th>
-                <th className={`${UI.padding} ${UI.label} text-center`}>Acesso aos Módulos</th>
-                <th className={`${UI.padding} ${UI.label} text-right`}>Segurança Master</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {usuariosFiltrados.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50/30 transition-colors">
-                  <td className={UI.padding}>
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={UI.name}>{u.nome}</span>
-                        {u.currentSessionId && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>}
-                      </div>
-                      <span className="text-[10px] text-blue-500 font-bold uppercase truncate">{u.escolaId || 'Sem Unidade'}</span>
-                    </div>
-                  </td>
-
-                  <td className={UI.padding}>
-                    <div className="flex justify-center gap-1.5 flex-wrap">
-                      {['dashboard', 'atendimento', 'saude_inclusiva', 'pasta_digital', 'auditoria_pro'].map(m => (
-                        <ModuloBtn key={m} ativo={u.modulosSidebar?.[m]} onClick={() => toggleModulo(u.id, m, u.modulosSidebar?.[m])} />
-                      ))}
-                    </div>
-                  </td>
-
-                  <td className={UI.padding}>
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => resetarSenha(u.email, u.nome)} className={`${UI.buttonAction} bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white shadow-sm`}>
-                        <KeyRound size={16} />
-                      </button>
-                      
-                      <button 
-                        disabled={!u.currentSessionId} 
-                        onClick={() => derrubarSessao(u.id, u.nome)} 
-                        className={`${UI.buttonAction} ${u.currentSessionId ? 'bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white shadow-sm' : 'bg-slate-50 text-slate-200 cursor-not-allowed'}`}
-                      >
-                        <LogOut size={16} />
-                      </button>
-
-                      <button 
-                        onClick={() => alternarStatus(u.id, u.status, u.nome)} 
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase italic transition-all shadow-sm
-                          ${u.status === 'ativo' ? 'bg-slate-900 text-white hover:bg-rose-600' : 'bg-emerald-500 text-white'}
-                        `}
-                      >
-                        {u.status === 'ativo' ? <XCircle size={14} /> : <CheckCircle size={14} />}
-                        <span className="hidden sm:inline">{u.status === 'ativo' ? 'Bloquear' : 'Ativar'}</span>
-                      </button>
-                    </div>
-                  </td>
+          {loading ? (
+            <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-100">
+                  <th className={`${UI.padding} ${UI.label}`}>Profissional / Escola</th>
+                  <th className={`${UI.padding} ${UI.label} text-center`}>Renovação Rápida</th>
+                  <th className={`${UI.padding} ${UI.label} text-right`}>Ações e Segurança</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {usuariosFiltrados.map((u) => {
+                  const exp = u.dataExpiracao?.seconds ? new Date(u.dataExpiracao.seconds * 1000) : null;
+                  const expirado = exp && new Date() > exp;
+
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-50/30 transition-colors">
+                      <td className={UI.padding}>
+                        <div className="flex flex-col">
+                          <span className={UI.name}>{u.nome}</span>
+                          <span className="text-[10px] text-blue-600 font-black uppercase flex items-center gap-1">
+                            <School size={10}/> {u.unidade || 'Sem Unidade'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-bold mt-1 uppercase">
+                            Expira: {exp ? exp.toLocaleDateString('pt-BR') : '---'} 
+                            {expirado && <span className="ml-2 text-rose-500 font-black italic">! EXPIRADO</span>}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className={UI.padding}>
+                        <div className="flex justify-center gap-2">
+                          {[30, 90, 365].map(d => (
+                            <button key={d} onClick={() => renovarLicenca(u.id, u.nome, d)} className="px-3 py-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-[9px] font-black transition-all">
+                              {d === 365 ? '1 ANO' : `${d}D`}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className={UI.padding}>
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            title="Resetar Senha"
+                            onClick={() => resetarSenha(u.email, u.nome)}
+                            className={`${UI.buttonAction} bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-100`}
+                          >
+                            <KeyRound size={16} />
+                          </button>
+
+                          <button 
+                            title="Derrubar Sessão"
+                            onClick={() => derrubarSessao(u.id, u.nome)}
+                            className={`${UI.buttonAction} ${u.currentSessionId ? 'bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white' : 'bg-slate-50 text-slate-300'}`}
+                          >
+                            <LogOut size={16} />
+                          </button>
+
+                          <button 
+                            title="Bloquear Usuário"
+                            onClick={() => expulsarUsuario(u.id, u.nome)}
+                            className={`${UI.buttonAction} bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100`}
+                          >
+                            <UserMinus size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
   );
 };
-
-const ModuloBtn = ({ ativo, onClick }) => (
-  <button 
-    onClick={onClick} 
-    className={`p-2 lg:p-3 rounded-xl border-2 transition-all ${ativo ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 bg-slate-50 text-slate-300'}`}
-  >
-    {ativo ? <LayoutDashboard size={14} /> : <Lock size={14} />}
-  </button>
-);
 
 export default GestaoUsuarios;

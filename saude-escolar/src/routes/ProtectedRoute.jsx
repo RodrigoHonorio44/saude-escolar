@@ -21,7 +21,7 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 🛡️ IMUNIDADE MASTER (Normalizada)
+  // 🛡️ IMUNIDADE MASTER (R S)
   const isRoot = user.role === 'root' || user.email?.toLowerCase() === "rodrigohono21@gmail.com";
 
   if (isRoot) {
@@ -30,24 +30,26 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // 🔒 TRAVAS PARA USUÁRIOS COMUNS
   const userRole = user.role?.trim() || 'enfermeiro';
-  const userStatus = user.status?.trim();
-  const licencaStatus = user.statusLicenca?.trim();
+  const userStatus = user.status?.trim()?.toLowerCase();
+  const licencaStatus = user.statusLicenca?.trim()?.toLowerCase();
 
   // 1. Bloqueio de conta/licença
   if (userStatus === 'bloqueado' || licencaStatus === 'bloqueada' || licencaStatus === 'expirada') {
     return <Navigate to="/bloqueado" replace />;
   }
 
-  // 2. Troca de senha obrigatória
-  const precisaTrocarSenha = user.primeiroAcesso === true || !user.dataUltimaTroca;
-  if (precisaTrocarSenha && location.pathname !== '/trocar-senha') {
-    return <Navigate to="/trocar-senha" replace />;
+  // 2. 🎯 CORREÇÃO: TROCA DE SENHA OBRIGATÓRIA (Sincronizado com o Login)
+  // Agora checa requirePasswordChange E o nome correto da rota
+  const precisaTrocarSenha = user.requirePasswordChange === true || user.primeiroAcesso === true || !user.dataUltimaTroca;
+  
+  if (precisaTrocarSenha && location.pathname !== '/redefinir-senha') {
+    return <Navigate to="/redefinir-senha" replace />;
   }
 
   // 3. Permissões de Cargo
   if (allowedRoles) {
     const rolesPermitidas = allowedRoles.map(r => r.toLowerCase());
-    if (!rolesPermitidas.includes(userRole)) {
+    if (!rolesPermitidas.includes(userRole.toLowerCase())) {
       return <Navigate to="/" replace />; 
     }
   }

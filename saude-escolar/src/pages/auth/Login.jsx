@@ -20,12 +20,11 @@ export const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
-  // --- 1. MONITORAMENTO EM TEMPO REAL (CORRIGIDO PARA COLEÇÃO 'usuarios') ---
+  // --- 1. MONITORAMENTO EM TEMPO REAL ---
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // ✅ CORREÇÃO: Alterado de 'users' para 'usuarios'
-        const userDocRef = doc(db, "usuarios", user.uid);
+        const userDocRef = doc(db, "users", user.uid);
         
         const unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -36,9 +35,9 @@ export const Login = () => {
             const statusLimpo = userData.status?.toLowerCase();
             const licencaLimpa = userData.statusLicenca?.toLowerCase() || userData.licencaStatus?.toLowerCase();
 
-            // BYPASS MASTER: Se for você, ignora a trava de múltiplas sessões
             const isMaster = user.email === "rodrigohono21@gmail.com" || roleLimpo === 'root';
 
+            // Verificação de Sessão Única
             if (!isMaster && localSessionId && userData.currentSessionId && userData.currentSessionId !== localSessionId) {
               toast.error("ACESSO ENCERRADO: OUTRO DISPOSITIVO CONECTOU.", {
                 duration: 8000,
@@ -53,6 +52,7 @@ export const Login = () => {
               return;
             }
 
+            // Verificação de Bloqueio
             const isBloqueado = statusLimpo === "bloqueado" || licencaLimpa === "bloqueada" || licencaLimpa === "expirada";
             if (isBloqueado && !isMaster) {
               toast.error("ACESSO SUSPENSO PELO ADMINISTRADOR.", { icon: '🛑' });
@@ -76,16 +76,14 @@ export const Login = () => {
       localStorage.removeItem("inspecao_unidade_id");
       localStorage.setItem("modo_inspecao", "false");
 
-      // Login com normalização lowercase
       const userCredential = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
       const user = userCredential.user;
       
       const newSessionId = `sess_${Date.now()}`;
-      // ✅ CORREÇÃO: Alterado de 'users' para 'usuarios'
-      const userDocRef = doc(db, "usuarios", user.uid);
+      const userDocRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userDocRef);
 
-      // LÓGICA MASTER R S
+      // --- 🛡️ LÓGICA MASTER (R S) ---
       if (user.email === "rodrigohono21@gmail.com") {
         const rootData = {
           nome: "rodrigo honório", 
@@ -107,16 +105,31 @@ export const Login = () => {
           });
         }
         localStorage.setItem("current_session_id", newSessionId);
-        window.location.replace('/root'); // Força entrada no root
+        window.location.replace('/root'); 
         return "ACESSO MESTRE LIBERADO"; 
       }
 
       if (!userSnap.exists()) {
         await signOut(auth);
-        throw new Error("USUÁRIO NÃO LOCALIZADO NA BASE DE DADOS");
+        throw new Error("USUÁRIO NÃO LOCALIZADO");
       }
 
       const userData = userSnap.data();
+
+      // --- 🎯 TRAVA DE SEGURANÇA (TROCA DE SENHA) ---
+      // Redireciona se requirePasswordChange for true OU se nunca trocou a senha
+      if (userData.requirePasswordChange === true || !userData.dataUltimaTroca) {
+        localStorage.setItem("current_session_id", newSessionId);
+        await updateDoc(userDocRef, {
+          currentSessionId: newSessionId,
+          ultimoLogin: serverTimestamp()
+        });
+        
+        window.location.replace('/redefinir-senha'); 
+        return "SEGURANÇA: DEFINA SUA NOVA SENHA";
+      }
+
+      // --- 👥 LÓGICA USUÁRIO COMUM ---
       const statusLimpo = userData.status?.toLowerCase();
       const licencaLimpa = userData.statusLicenca?.toLowerCase() || userData.licencaStatus?.toLowerCase();
 
@@ -155,7 +168,7 @@ export const Login = () => {
     <div className="h-screen w-full flex flex-col lg:flex-row bg-white overflow-hidden font-sans relative">
       <Toaster position="top-right" />
 
-      {/* LADO ESQUERDO: BRANDING */}
+      {/* LADO ESQUERDO */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#020617] relative p-8 xl:p-12 flex-col justify-center items-center border-r border-white/5 overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] bg-blue-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[35vw] h-[35vw] bg-indigo-600/10 rounded-full blur-[100px]"></div>
@@ -164,32 +177,26 @@ export const Login = () => {
           <div className="flex flex-col items-center gap-2 mb-6 xl:mb-10">
             <div className="flex items-center gap-3 bg-white/5 px-5 py-2 rounded-2xl border border-white/10">
               <GraduationCap className="text-blue-500" size={20} />
-              <h3 className="text-white font-black text-lg xl:text-xl tracking-[0.1em] uppercase italic leading-none">RODHON SYSTEM</h3>
+              <h3 className="text-white font-black text-lg xl:text-xl tracking-[0.1em] uppercase italic">RODHON SYSTEM</h3>
             </div>
-            <p className="text-blue-400 text-[8px] font-black tracking-[0.4em] uppercase">Saúde e Gestão</p>
           </div>
-
           <h1 className="text-3xl xl:text-6xl font-black text-white leading-[0.9] tracking-tighter italic uppercase mb-6">
             PORTAL <br />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-400">DE ACESSO</span>
           </h1>
-          
-          <div className="h-1 w-16 bg-gradient-to-r from-blue-600 to-cyan-500 mb-6 xl:mb-8 rounded-full"></div>
-          
           <p className="text-slate-400 max-w-xs font-medium text-[10px] xl:text-sm leading-relaxed opacity-70">
             Monitoramento clínico e prontuário digital unificado.
           </p>
         </div>
       </div>
 
-      {/* LADO DIREITO: FORMULÁRIO */}
+      {/* LADO DIREITO */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 bg-slate-50 relative">
         <div className="w-full max-w-[360px]">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-black text-slate-900 italic uppercase leading-none">
+            <h2 className="text-3xl font-black text-slate-900 italic uppercase">
               RODHON<span className="text-blue-600">SYSTEM</span>
             </h2>
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-4">Identificação Profissional</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -226,7 +233,7 @@ export const Login = () => {
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="w-full bg-[#020617] text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] hover:bg-blue-600 hover:-translate-y-1 transition-all flex items-center justify-center gap-3 disabled:bg-slate-300 shadow-xl mt-6 active:scale-[0.98]">
+            <button type="submit" disabled={loading} className="w-full bg-[#020617] text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] hover:bg-blue-600 transition-all flex items-center justify-center gap-3 shadow-xl mt-6">
               {loading ? <Loader2 className="animate-spin" size={20} /> : <>Entrar no Sistema <ArrowRight size={18} /></>}
             </button>
           </form>
@@ -237,7 +244,7 @@ export const Login = () => {
              </div>
              <button onClick={() => setShowSupport(true)} className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm hover:bg-slate-50 transition-all">
                 <LifeBuoy size={14} className="text-blue-600" />
-                <span className="text-[9px] font-black uppercase tracking-widest">Suporte</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-black">Suporte</span>
              </button>
           </div>
         </div>
@@ -252,10 +259,10 @@ export const Login = () => {
               <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-600/30">
                 <MessageSquare size={28} />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 uppercase italic">Suporte Rodhon</h3>
-              <p className="text-slate-600 text-sm mt-2 mb-8 font-medium">Como podemos ajudar você hoje?</p>
+              <h3 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Suporte</h3>
+              <p className="text-slate-600 text-sm mt-3 mb-8 font-medium">Fale com nossa central de atendimento no WhatsApp.</p>
               <a href="https://wa.me/5521975966330" target="_blank" rel="noreferrer" className="flex items-center justify-center w-full bg-[#25D366] text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md hover:scale-[1.02] transition-transform">
-                Chamar no WhatsApp
+                Iniciar Conversa
               </a>
             </div>
           </div>

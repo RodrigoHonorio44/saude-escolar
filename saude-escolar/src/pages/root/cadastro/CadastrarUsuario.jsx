@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db } from '../../../config/firebase'; // Certifique-se de que o db está importado
+import { db } from '../../../config/firebase'; 
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'; 
 import { cadastrarUsuarioService } from '../../../services/licencaService'; 
 import toast, { Toaster } from 'react-hot-toast'; 
@@ -10,7 +10,7 @@ import {
 
 const CadastrarUsuario = () => {
   const [loading, setLoading] = useState(false);
-  const [unidadesCarregadas, setUnidadesCarregadas] = useState([]); // Nova lista dinâmica
+  const [unidadesCarregadas, setUnidadesCarregadas] = useState([]); 
   const [unidadesLoading, setUnidadesLoading] = useState(true);
   
   const [formData, setFormData] = useState({
@@ -20,17 +20,20 @@ const CadastrarUsuario = () => {
     role: 'enfermeiro', 
     prazo: '365', 
     registroProfissional: '',
-    escolaId: '' // Começa vazio até carregar
+    escolaId: '' 
   });
 
   // 1. CARREGAR UNIDADES DO BANCO EM TEMPO REAL
   useEffect(() => {
     const q = query(collection(db, "unidades"), orderBy("nome", "asc"));
     const unsub = onSnapshot(q, (snap) => {
-      const lista = snap.docs.map(d => ({ id: d.id, nome: d.data().nome }));
+      const lista = snap.docs.map(d => ({ 
+        id: d.id, 
+        nome: d.data().nome,
+        unidadeId: d.data().unidadeId 
+      }));
       setUnidadesCarregadas(lista);
       
-      // Define a primeira escola como padrão se o campo estiver vazio
       if (lista.length > 0 && !formData.escolaId) {
         setFormData(prev => ({ ...prev, escolaId: lista[0].id }));
       }
@@ -70,34 +73,33 @@ const CadastrarUsuario = () => {
 
     setLoading(true);
     try {
-      const dataExpira = new Date();
-      dataExpira.setDate(dataExpira.getDate() + parseInt(formData.prazo));
-
-      // Busca o nome legível da escola na nossa lista carregada
       const escolaSelecionada = unidadesCarregadas.find(u => u.id === formData.escolaId);
 
+      // 🎯 ENVIANDO PARA O SERVICE PADRÃO R S (TUDO NORMALIZADO)
       await cadastrarUsuarioService({
-        nome: nomeLimpo, // O service cuidará do lowercase
+        nome: nomeLimpo, // O service já faz o lower
         email: formData.email,
         password: formData.senha,
         role: formData.role,
-        registroProfissional: formData.registroProfissional,
-        escolaId: formData.escolaId, // Ex: "cept-anisio-teixeira"
+        // ✅ Atualizado: Agora envia em lowercase para o banco
+        registroProfissional: formData.registroProfissional.toLowerCase().trim(),
+        unidadeId: escolaSelecionada?.unidadeId || formData.escolaId, 
         unidade: escolaSelecionada?.nome || 'unidade r s',
-        modulosSidebar: modulos,
-        dataExpiracao: dataExpira.toISOString()
+        prazo: parseInt(formData.prazo),
+        modulosSidebar: modulos
       });
       
-      toast.success(`Usuário ${nomeLimpo.toUpperCase()} cadastrado com sucesso!`, {
-        style: { background: '#0f172a', color: '#fff', borderRadius: '15px' }
+      toast.success(`USUÁRIO ${nomeLimpo.toUpperCase()} CADASTRADO!`, {
+        style: { background: '#0f172a', color: '#fff', borderRadius: '15px', fontWeight: 'bold' }
       });
 
       setFormData({ ...formData, nome: '', email: '', senha: '', registroProfissional: '' });
+      toast("Sessão Admin encerrada por segurança. Faça login novamente.", { icon: '🔒' });
 
     } catch (error) { 
       let msg = error.message;
       if(error.code === 'auth/email-already-in-use') msg = "E-mail já cadastrado!";
-      toast.error("Erro: " + msg.toUpperCase()); 
+      toast.error("ERRO: " + msg.toUpperCase()); 
     } finally {
       setLoading(false);
     }
@@ -127,7 +129,6 @@ const CadastrarUsuario = () => {
                   placeholder="EX: MARCELO SILVA" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
               </div>
 
-              {/* SELECT DINÂMICO DE UNIDADES */}
               <div className="md:col-span-2 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block flex items-center gap-2">
                   <School size={14}/> Unidade de Lotação (Busca no Banco)
@@ -140,8 +141,6 @@ const CadastrarUsuario = () => {
                 >
                   {unidadesLoading ? (
                     <option>Carregando unidades...</option>
-                  ) : unidadesCarregadas.length === 0 ? (
-                    <option>Nenhuma unidade encontrada</option>
                   ) : (
                     unidadesCarregadas.map(u => (
                       <option key={u.id} value={u.id}>{u.nome.toUpperCase()}</option>
@@ -163,8 +162,9 @@ const CadastrarUsuario = () => {
 
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">COREN / Registro</label>
-                <input className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-slate-700 uppercase" 
-                  placeholder="000.000" value={formData.registroProfissional} onChange={e => setFormData({...formData, registroProfissional: e.target.value})} />
+                {/* Removido o uppercase visual para seguir a entrada em minúsculo */}
+                <input className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-slate-700" 
+                  placeholder="000.000-rj" value={formData.registroProfissional} onChange={e => setFormData({...formData, registroProfissional: e.target.value})} />
               </div>
 
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-50">

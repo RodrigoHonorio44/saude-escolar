@@ -1,8 +1,8 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { auth, db } from '../config/firebase'; 
-import { onAuthStateChanged, signOut } from 'firebase/auth'; // Adicionei o signOut
+import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { doc, getDoc } from 'firebase/firestore';
-import { monitorarLicenca } from '../services/licencaService'; // Importando seu novo monitor
+import { monitorarLicenca } from '../services/licencaService'; 
 
 export const AuthContext = createContext({});
 
@@ -10,58 +10,75 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Função para deslogar (usada pelo monitor de licença)
   const handleLogout = async () => {
-    await signOut(auth);
-    setUser(null);
+    try {
+      await signOut(auth);
+      setUser(null);
+    } catch (error) {
+      console.error("Erro ao deslogar:", error);
+    }
   };
 
   useEffect(() => {
-    let unsubscribeMonitor = null; // Guardamos o monitor aqui para poder parar ele depois
+    let unsubscribeMonitor = null; 
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("SISTEMA R S - Verificando Auth...");
-      
+      // Limpa monitor anterior para evitar vazamento de memória e leituras extras
+      if (unsubscribeMonitor) {
+        unsubscribeMonitor();
+        unsubscribeMonitor = null;
+      }
+
       if (firebaseUser) {
-        // 1. Busca os dados iniciais
-        const docRef = doc(db, "users", firebaseUser.uid); 
-        const docSnap = await getDoc(docRef);
+        try {
+          // 🎯 PADRÃO R S: Unificado na coleção 'users'
+          const docRef = doc(db, "users", firebaseUser.uid); 
+          const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          
-          setUser({ 
-            uid: firebaseUser.uid, 
-            ...data,
-            nome: data.nome?.toLowerCase() || 'usuário r s',
-            role: data.role?.toLowerCase() || 'enfermeiro',
-            email: firebaseUser.email?.toLowerCase()
-          });
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // ✅ NORMALIZAÇÃO E CARREGAMENTO
+            const usuarioDados = { 
+              uid: firebaseUser.uid, 
+              ...data,
+              nome: data.nome?.toLowerCase() || 'usuário r s',
+              role: data.role?.toLowerCase() || 'enfermeiro',
+              email: firebaseUser.email?.toLowerCase(),
+              // Adicionamos a flag de primeiro acesso para a rota protegida
+              primeiroAcesso: data.primeiroAcesso || data.requirePasswordChange || false
+            };
 
-          // 🛡️ 2. ATIVA O MONITOR DE LICENÇA (VIGILÂNCIA EM TEMPO REAL)
-          // Se o monitor detectar bloqueio ou expiração, chama o handleLogout
-          unsubscribeMonitor = monitorarLicenca(firebaseUser.uid, () => {
-            console.log("🚨 SISTEMA R S - Bloqueio detectado via Monitor!");
-            handleLogout();
-          });
+            setUser(usuarioDados);
 
-        } else {
-          // Caso o documento não exista no Firestore mas exista no Auth
-          setUser({ 
-            uid: firebaseUser.uid, 
-            role: firebaseUser.email === "rodrigohono21@gmail.com" ? "root" : "enfermeiro",
-            email: firebaseUser.email?.toLowerCase()
-          });
+            // 🛡️ MONITOR DE LICENÇA (SÓ PARA QUEM NÃO É ROOT)
+            const isRoot = firebaseUser.email === "rodrigohono21@gmail.com" || data.role === 'root';
+            
+            if (!isRoot) {
+              unsubscribeMonitor = monitorarLicenca(firebaseUser.uid, () => {
+                console.log("🚨 SISTEMA R S - Licença Expirada ou Bloqueada!");
+                handleLogout();
+              });
+            }
+
+          } else {
+            // Caso seja você (Root) e o doc ainda não exista na 'users'
+            setUser({ 
+              uid: firebaseUser.uid, 
+              role: firebaseUser.email === "rodrigohono21@gmail.com" ? "root" : "enfermeiro",
+              email: firebaseUser.email?.toLowerCase(),
+              primeiroAcesso: false
+            });
+          }
+        } catch (err) {
+          console.error("Erro ao carregar perfil R S:", err);
         }
       } else {
         setUser(null);
-        // Se deslogou, paramos de monitorar
-        if (unsubscribeMonitor) unsubscribeMonitor();
       }
       setLoading(false);
     });
 
-    // Cleanup ao desmontar o componente
     return () => {
       unsubscribeAuth();
       if (unsubscribeMonitor) unsubscribeMonitor();
@@ -77,8 +94,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth deve ser usado dentro de um AuthProvider");
-  }
+  if (!context) throw new Error("useAuth deve ser usado dentro de um AuthProvider");
   return context;
 }

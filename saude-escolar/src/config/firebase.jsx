@@ -1,8 +1,14 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+// ✅ Importações necessárias para o Cache
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore";
 
-const firebaseConfig = {
+// 🚨 ADICIONADO 'export' PARA PERMITIR INSTÂNCIA SECUNDÁRIA (ANTI-LOGOUT)
+export const firebaseConfig = {
   apiKey: "AIzaSyDh3TqDTChoHOH5orZ0dn-8cuMzWUtPQl8",
   authDomain: "saude-escolar-e2bac.firebaseapp.com",
   projectId: "saude-escolar-e2bac",
@@ -12,5 +18,12 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// ✅ Configuração Econômica: Ativa persistência de dados
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager() // Evita conflitos se abrir várias abas
+  })
+});
+
 export const auth = getAuth(app);
