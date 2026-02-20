@@ -1,16 +1,17 @@
-import { useState } from 'react';
-import { Timestamp } from 'firebase/firestore'; 
-// ✅ CORRIGIDO: O serviço vem de licencaService, não da página de Controle
+import { useState, useEffect } from 'react';
+import { db } from '../../../config/firebase'; // Certifique-se de que o db está importado
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'; 
 import { cadastrarUsuarioService } from '../../../services/licencaService'; 
 import toast, { Toaster } from 'react-hot-toast'; 
 import { 
   UserPlus, CheckCircle2, 
-  Loader2, ShieldCheck, Gem, Hash, Lock, Calendar, UserCog,
-  Accessibility, School 
+  Loader2, ShieldCheck, School 
 } from 'lucide-react';
 
 const CadastrarUsuario = () => {
   const [loading, setLoading] = useState(false);
+  const [unidadesCarregadas, setUnidadesCarregadas] = useState([]); // Nova lista dinâmica
+  const [unidadesLoading, setUnidadesLoading] = useState(true);
   
   const [formData, setFormData] = useState({
     nome: '', 
@@ -19,15 +20,24 @@ const CadastrarUsuario = () => {
     role: 'enfermeiro', 
     prazo: '365', 
     registroProfissional: '',
-    escolaId: 'cept-anisio-teixeira' 
+    escolaId: '' // Começa vazio até carregar
   });
 
-  const UNIDADES = [
-    { id: 'cept-anisio-teixeira', nome: 'cept anísio teixeira' },
-    { id: 'em-pioneira', nome: 'e. m. pioneira' },
-    { id: 'centro-educacional-joana-benedicta-rangel', nome: 'centro educacional joana benedicta rangel' },
-    { id: 'administracao-central', nome: 'administração central' }
-  ];
+  // 1. CARREGAR UNIDADES DO BANCO EM TEMPO REAL
+  useEffect(() => {
+    const q = query(collection(db, "unidades"), orderBy("nome", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      const lista = snap.docs.map(d => ({ id: d.id, nome: d.data().nome }));
+      setUnidadesCarregadas(lista);
+      
+      // Define a primeira escola como padrão se o campo estiver vazio
+      if (lista.length > 0 && !formData.escolaId) {
+        setFormData(prev => ({ ...prev, escolaId: lista[0].id }));
+      }
+      setUnidadesLoading(false);
+    });
+    return () => unsub();
+  }, []);
 
   const [modulos, setModulos] = useState({
     dashboard: true,       
@@ -63,19 +73,19 @@ const CadastrarUsuario = () => {
       const dataExpira = new Date();
       dataExpira.setDate(dataExpira.getDate() + parseInt(formData.prazo));
 
-      const escolaSelecionada = UNIDADES.find(u => u.id === formData.escolaId);
+      // Busca o nome legível da escola na nossa lista carregada
+      const escolaSelecionada = unidadesCarregadas.find(u => u.id === formData.escolaId);
 
-      // ✅ Chamada para o serviço unificado (Padrão R S aplicado no service)
       await cadastrarUsuarioService({
-        nome: nomeLimpo,
+        nome: nomeLimpo, // O service cuidará do lowercase
         email: formData.email,
         password: formData.senha,
         role: formData.role,
         registroProfissional: formData.registroProfissional,
-        escolaId: formData.escolaId,
-        unidade: escolaSelecionada.nome,
+        escolaId: formData.escolaId, // Ex: "cept-anisio-teixeira"
+        unidade: escolaSelecionada?.nome || 'unidade r s',
         modulosSidebar: modulos,
-        dataExpiracao: dataExpira.toISOString() // Enviando como ISO String para o controle de licenças
+        dataExpiracao: dataExpira.toISOString()
       });
       
       toast.success(`Usuário ${nomeLimpo.toUpperCase()} cadastrado com sucesso!`, {
@@ -102,7 +112,7 @@ const CadastrarUsuario = () => {
           <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic flex items-center gap-3">
             <UserPlus size={32} className="text-blue-600" /> Gestão Master <span className="text-blue-600">Users</span>
           </h1>
-          <p className="text-slate-400 font-bold uppercase text-[9px] tracking-[0.2em] mt-2">Processamento via licencaService</p>
+          <p className="text-slate-400 font-bold uppercase text-[9px] tracking-[0.2em] mt-2">Padrão R S - Vínculo Dinâmico</p>
         </div>
       </div>
 
@@ -110,21 +120,33 @@ const CadastrarUsuario = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-8 rounded-[35px] shadow-sm border border-slate-100">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
               <div className="md:col-span-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Nome Completo</label>
                 <input required className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-slate-700 focus:ring-2 ring-blue-500/20 transition-all" 
                   placeholder="EX: MARCELO SILVA" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
               </div>
 
+              {/* SELECT DINÂMICO DE UNIDADES */}
               <div className="md:col-span-2 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block flex items-center gap-2">
-                  <School size={14}/> Unidade de Lotação
+                  <School size={14}/> Unidade de Lotação (Busca no Banco)
                 </label>
-                <select className="w-full p-4 bg-white rounded-2xl border-2 border-slate-100 outline-none font-black text-slate-700 cursor-pointer"
-                  value={formData.escolaId} onChange={e => setFormData({...formData, escolaId: e.target.value})}>
-                  {UNIDADES.map(u => (
-                    <option key={u.id} value={u.id}>{u.nome.toUpperCase()}</option>
-                  ))}
+                <select 
+                  className="w-full p-4 bg-white rounded-2xl border-2 border-slate-100 outline-none font-black text-slate-700 cursor-pointer disabled:opacity-50"
+                  value={formData.escolaId} 
+                  disabled={unidadesLoading}
+                  onChange={e => setFormData({...formData, escolaId: e.target.value})}
+                >
+                  {unidadesLoading ? (
+                    <option>Carregando unidades...</option>
+                  ) : unidadesCarregadas.length === 0 ? (
+                    <option>Nenhuma unidade encontrada</option>
+                  ) : (
+                    unidadesCarregadas.map(u => (
+                      <option key={u.id} value={u.id}>{u.nome.toUpperCase()}</option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -178,7 +200,7 @@ const CadastrarUsuario = () => {
               ))}
             </div>
 
-            <button type="submit" disabled={loading} className={`w-full py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${loading ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/20'}`}>
+            <button type="submit" disabled={loading || unidadesLoading} className={`w-full py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${loading ? 'bg-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/20'}`}>
               {loading ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Processar Cadastro'}
             </button>
           </div>
