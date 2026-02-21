@@ -7,7 +7,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { 
   Users, ShieldCheck, Activity, Calendar, UserPlus, DollarSign,
-  AlertCircle, ArrowRight, Loader2, Eye, LayoutDashboard, Undo2, Zap, Settings, Download, ShieldAlert, Save, Database, LogOut, ExternalLink, School
+  AlertCircle, ArrowRight, Loader2, Eye, LayoutDashboard, Undo2, Zap, Settings, Download, ShieldAlert, Save, Database, LogOut, ExternalLink, School, ActivitySquare
 } from "lucide-react";
 
 import DashboardEnfermeiro from '../dashboard/DashboardEnfermeiro.jsx'; 
@@ -15,6 +15,7 @@ import GestaoUsuarios from './cadastro/GestaoUsuarios.jsx';
 import CadastrarUsuario from './cadastro/CadastrarUsuario.jsx';
 import ControleLicencas from './ControleLicencas.jsx';
 import GerenciarUnidades from './cadastro/GerenciarUnidades.jsx'; 
+import PainelControleMaster from './PainelControleMaster.jsx'; 
 
 const EstiloMaster = {
   card: "bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden",
@@ -30,10 +31,20 @@ const DashboardRoot = () => {
   const [modoVisualizacao, setModoVisualizacao] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [unidadesBD, setUnidadesBD] = useState([]); 
+  const [anomaliasPendentes, setAnomaliasPendentes] = useState(0);
 
   const [unidadeSelecionada, setUnidadeSelecionada] = useState({
     id: 'cept-anisio-teixeira', nome: 'cept anísio teixeira'
   });
+
+  // MONITORAR ANOMALIAS EM TEMPO REAL PARA O BADGE
+  useEffect(() => {
+    const q = query(collection(db, "anomalias_sistema"), where("resolvido", "==", false));
+    const unsub = onSnapshot(q, (snap) => {
+      setAnomaliasPendentes(snap.size);
+    });
+    return () => unsub();
+  }, []);
 
   // 1. CARREGAR COLÉGIOS DO FIREBASE (DINÂMICO)
   useEffect(() => {
@@ -41,7 +52,6 @@ const DashboardRoot = () => {
     const unsubUnidades = onSnapshot(qUnidades, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setUnidadesBD(lista);
-      // Mantém uma seleção padrão se o banco não estiver vazio
       if (lista.length > 0 && !unidadesBD.find(u => u.id === unidadeSelecionada.id)) {
         setUnidadeSelecionada(lista[0]);
       }
@@ -113,6 +123,15 @@ const DashboardRoot = () => {
             <LayoutDashboard size={18} /> Painel Central
           </button>
           
+          <button onClick={() => setAbaAtiva('manutencao')} className={EstiloMaster.sidebarItem(abaAtiva === 'manutencao')}>
+            <ShieldAlert size={18} /> Saúde do Sistema
+            {anomaliasPendentes > 0 && (
+              <span className="ml-auto bg-rose-600 text-white text-[8px] px-2 py-0.5 rounded-full animate-pulse font-black">
+                {anomaliasPendentes}
+              </span>
+            )}
+          </button>
+
           <button onClick={() => setAbaAtiva('licencas')} className={EstiloMaster.sidebarItem(abaAtiva === 'licencas')}>
             <DollarSign size={18} /> Faturamento Master
           </button>
@@ -199,23 +218,23 @@ const DashboardRoot = () => {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Banner de Faturamento */}
+                {/* Banner de Saúde do Sistema */}
                 <div 
                   className="lg:col-span-8 bg-[#0f172a] p-10 rounded-[40px] flex flex-col justify-between min-h-[320px] relative overflow-hidden shadow-2xl group cursor-pointer border border-white/5"
-                  onClick={() => setAbaAtiva('licencas')}
+                  onClick={() => setAbaAtiva('manutencao')}
                 >
                   <div className="z-10">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mb-8 shadow-lg shadow-blue-600/20">
-                      <DollarSign size={28} className="text-white" />
+                    <div className="w-14 h-14 rounded-2xl bg-rose-600 flex items-center justify-center mb-8 shadow-lg shadow-rose-600/20">
+                      <Zap size={28} className="text-white" />
                     </div>
-                    <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter">Controle Financeiro</h3>
+                    <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter">Saúde do Sistema</h3>
                     <p className="text-slate-400 text-[11px] mt-2 font-bold uppercase tracking-widest leading-relaxed max-w-sm">
-                      Gestão de renovações e faturamento previsto 2026.
+                      Detecte anomalias silenciosas, limpe logs e normalize o banco de dados.
                     </p>
                   </div>
-                  <Zap size={220} className="absolute -right-10 -bottom-10 text-white/[0.03] group-hover:text-blue-500/10 transition-all duration-700 rotate-12" />
-                  <div className="z-10 mt-6 flex items-center gap-2 text-blue-400 font-black text-[10px] uppercase tracking-widest">
-                    Acessar Painel Master <ArrowRight size={14} />
+                  <ActivitySquare size={220} className="absolute -right-10 -bottom-10 text-white/[0.03] group-hover:text-rose-500/10 transition-all duration-700 rotate-12" />
+                  <div className="z-10 mt-6 flex items-center gap-2 text-rose-400 font-black text-[10px] uppercase tracking-widest">
+                    Varrer Sistema Agora <ArrowRight size={14} />
                   </div>
                 </div>
 
@@ -240,6 +259,7 @@ const DashboardRoot = () => {
           )}
 
           {/* COMPONENTES DAS ABAS */}
+          {abaAtiva === 'manutencao' && <PainelControleMaster />}
           {abaAtiva === 'licencas' && <ControleLicencas />}
           {abaAtiva === 'usuarios' && <GestaoUsuarios />}
           {abaAtiva === 'colégios' && <GerenciarUnidades />}

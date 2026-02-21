@@ -6,7 +6,7 @@ import {
   where, serverTimestamp, addDoc, Timestamp, orderBy 
 } from 'firebase/firestore'; 
 import { 
-  Search, LogOut, ShieldCheck, UserMinus, Loader2, KeyRound, School
+  Search, LogOut, ShieldCheck, UserMinus, UserCheck, Loader2, KeyRound, School
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -27,15 +27,12 @@ const GestaoUsuarios = () => {
   const [filtro, setFiltro] = useState('');
   const [escolaSelecionada, setEscolaSelecionada] = useState('todas');
 
-  // CARREGA USUÁRIOS E UNIDADES
   useEffect(() => {
-    // Busca Unidades para o Select
     const qUnidades = query(collection(db, "unidades"), orderBy("nome", "asc"));
     const unsubUnidades = onSnapshot(qUnidades, (snap) => {
       setUnidades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Busca Usuários
     const qUsers = query(collection(db, "users"), where("role", "!=", "root"));
     const unsubUsers = onSnapshot(qUsers, (snapshot) => {
       setUsuarios(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -54,6 +51,29 @@ const GestaoUsuarios = () => {
         data: serverTimestamp()
       });
     } catch (e) { console.error(e); }
+  };
+
+  const alternarStatusUsuario = async (id, nome, statusAtual) => {
+    const isBloqueado = statusAtual === 'bloqueado' || statusAtual === 'bloqueada';
+    
+    try {
+      await updateDoc(doc(db, "users", id), { 
+        status: isBloqueado ? 'ativo' : 'bloqueado',
+        licencaStatus: isBloqueado ? 'ativa' : 'bloqueada',
+        currentSessionId: "" 
+      });
+      
+      const acaoTxt = isBloqueado ? "DESBLOQUEIO" : "BLOQUEIO";
+      registrarLog(nome, acaoTxt);
+      
+      if(isBloqueado) {
+        toast.success(`ACESSO DE ${nome.toUpperCase()} REATIVADO!`);
+      } else {
+        toast.error(`ACESSO DE ${nome.toUpperCase()} SUSPENSO!`);
+      }
+    } catch (e) { 
+      toast.error("ERRO NA OPERAÇÃO"); 
+    }
   };
 
   const resetarSenha = async (email, nome) => {
@@ -79,20 +99,6 @@ const GestaoUsuarios = () => {
     } catch (e) { toast.error("ERRO NA RENOVAÇÃO"); }
   };
 
-  const expulsarUsuario = async (id, nome) => {
-    if (window.confirm(`EXPULSAR DEFINITIVAMENTE ${nome.toUpperCase()}?`)) {
-      try {
-        await updateDoc(doc(db, "users", id), { 
-          status: 'bloqueado',
-          licencaStatus: 'bloqueada',
-          currentSessionId: "" 
-        });
-        registrarLog(nome, "expulsao definitiva");
-        toast.error("USUÁRIO EXPULSO");
-      } catch (e) { toast.error("ERRO AO EXPULSAR"); }
-    }
-  };
-
   const derrubarSessao = async (id, nome) => {
     try {
       await updateDoc(doc(db, "users", id), { currentSessionId: "" });
@@ -101,7 +107,6 @@ const GestaoUsuarios = () => {
     } catch (e) { toast.error("ERRO AO DERRUBAR"); }
   };
 
-  // FILTRAGEM COMBINADA (NOME + ESCOLA)
   const usuariosFiltrados = usuarios.filter(u => {
     const matchesFiltro = u.nome?.toLowerCase().includes(filtro.toLowerCase()) || u.email?.toLowerCase().includes(filtro.toLowerCase());
     const matchesEscola = escolaSelecionada === 'todas' || u.unidadeId === escolaSelecionada;
@@ -125,7 +130,6 @@ const GestaoUsuarios = () => {
           </div>
           
           <div className="flex flex-col md:flex-row gap-4 w-full lg:max-w-2xl">
-            {/* SELECT DE UNIDADES */}
             <div className="relative flex-1">
               <School className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <select 
@@ -140,7 +144,6 @@ const GestaoUsuarios = () => {
               </select>
             </div>
 
-            {/* BUSCA POR NOME */}
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -170,12 +173,13 @@ const GestaoUsuarios = () => {
                 {usuariosFiltrados.map((u) => {
                   const exp = u.dataExpiracao?.seconds ? new Date(u.dataExpiracao.seconds * 1000) : null;
                   const expirado = exp && new Date() > exp;
+                  const isBloqueado = u.status === 'bloqueado' || u.licencaStatus === 'bloqueada';
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/30 transition-colors">
                       <td className={UI.padding}>
                         <div className="flex flex-col">
-                          <span className={UI.name}>{u.nome}</span>
+                          <span className={`${UI.name} ${isBloqueado ? 'line-through text-slate-400' : ''}`}>{u.nome}</span>
                           <span className="text-[10px] text-blue-600 font-black uppercase flex items-center gap-1">
                             <School size={10}/> {u.unidade || 'Sem Unidade'}
                           </span>
@@ -214,12 +218,15 @@ const GestaoUsuarios = () => {
                             <LogOut size={16} />
                           </button>
 
+                          {/* BOTÃO DINÂMICO BLOQUEAR/DESBLOQUEAR */}
                           <button 
-                            title="Bloquear Usuário"
-                            onClick={() => expulsarUsuario(u.id, u.nome)}
-                            className={`${UI.buttonAction} bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100`}
+                            title={isBloqueado ? "Desbloquear Usuário" : "Bloquear Usuário"}
+                            onClick={() => alternarStatusUsuario(u.id, u.nome, u.status || u.licencaStatus)}
+                            className={`${UI.buttonAction} ${isBloqueado 
+                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white border border-emerald-100' 
+                              : 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100'}`}
                           >
-                            <UserMinus size={16} />
+                            {isBloqueado ? <UserCheck size={16} /> : <UserMinus size={16} />}
                           </button>
                         </div>
                       </td>
