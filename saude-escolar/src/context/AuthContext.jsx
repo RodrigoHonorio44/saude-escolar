@@ -38,14 +38,22 @@ export function AuthProvider({ children }) {
           if (docSnap.exists()) {
             const data = docSnap.data();
             
-            // ✅ NORMALIZAÇÃO E CARREGAMENTO
+            // ✅ NORMALIZAÇÃO E CARREGAMENTO R S
             const usuarioDados = { 
               uid: firebaseUser.uid, 
               ...data,
+              // Mapeamento de chaves para evitar erro de "Unidade não identificada"
+              unidadeid: data.unidadeId || data.unidadeid || '',
+              escolaid: data.escolaId || data.escolaid || '',
+              
+              // Padronização de valores em minúsculo para busca
               nome: data.nome?.toLowerCase() || 'usuário r s',
               role: data.role?.toLowerCase() || 'enfermeiro',
+              unidade: data.unidade?.toLowerCase() || '',
+              escola: data.escola?.toLowerCase() || '',
               email: firebaseUser.email?.toLowerCase(),
-              // Adicionamos a flag de primeiro acesso para a rota protegida
+              
+              // Flag de primeiro acesso para a rota protegida
               primeiroAcesso: data.primeiroAcesso || data.requirePasswordChange || false
             };
 
@@ -67,7 +75,9 @@ export function AuthProvider({ children }) {
               uid: firebaseUser.uid, 
               role: firebaseUser.email === "rodrigohono21@gmail.com" ? "root" : "enfermeiro",
               email: firebaseUser.email?.toLowerCase(),
-              primeiroAcesso: false
+              primeiroAcesso: false,
+              unidadeid: '',
+              escolaid: ''
             });
           }
         } catch (err) {

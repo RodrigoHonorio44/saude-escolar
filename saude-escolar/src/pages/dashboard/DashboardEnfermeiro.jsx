@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { db, auth } from "../../config/firebase"; 
-import { doc, onSnapshot, collection, getDocs, query, where } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { 
   LayoutDashboard, UserPlus, ClipboardList, Stethoscope,
   ChevronDown, LogOut, FolderSearch, Brain, 
-  Menu, Sun, Moon, LifeBuoy, BarChart3, 
+  Menu, Sun, Moon, BarChart3, 
   Contact, Zap, Construction, Mail
 } from "lucide-react";
 
-// Importe o componente de cadastro
+// ✅ IMPORTAÇÕES DOS FORMULÁRIOS
 import FormCadastroAluno from '../alunos/cadastro/FormCadastroAluno'; 
+import AtendimentoEnfermagem from '../atendimento/cadastro/AtendimentoEnfermagem'; // AJUSTE O CAMINHO CONFORME SUA PASTA
 
-// ✅ Definido fora do componente para evitar re-criação e ReferenceError
 const MENU_ESTRUTURA = [
   { id: "home", label: "Painel Geral", icon: <LayoutDashboard size={20} />, key: "dashboard" },
   { id: "atendimento", label: "Ficha de Atendimento", icon: <Stethoscope size={20} />, key: "atendimento" },
@@ -43,7 +43,6 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [darkMode, setDarkMode] = useState(false); 
 
-  // ✅ PADRÃO R S: Identificação de Permissões
   const cargoLower = useMemo(() => user?.role?.toLowerCase() || "", [user]);
   const isRoot = useMemo(() => cargoLower === 'root' || user?.email === "rodrigohono21@gmail.com", [cargoLower, user]);
 
@@ -53,7 +52,6 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
     return user?.modulosSidebar?.[itemKey] === true;
   }, [isRoot, cargoLower, user]);
 
-  // ✅ Contexto de Unidade Otimizado
   const userContext = useMemo(() => {
     const inspecaoId = localStorage.getItem('inspecao_unidade_id'); 
     const inspecaoNome = localStorage.getItem('inspecao_unidade_nome'); 
@@ -63,25 +61,22 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
       return { 
         ...user, 
         escolaId: inspecaoId.toLowerCase().trim(), 
-        unidade: inspecaoNome?.toLowerCase().trim() || "Unidade em Inspeção" 
+        unidade: inspecaoNome?.toLowerCase().trim() || "unidade em inspeção" 
       };
     }
     return user;
   }, [user, isRoot]);
 
-  // ✅ Sincronização em tempo real (Firebase Economy)
   useEffect(() => {
     const userId = initialUser?.uid || initialUser?.id;
     if (!userId) return;
-
     const unsub = onSnapshot(doc(db, "usuarios", userId), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setUser(prev => ({ ...prev, ...data, id: docSnap.id }));
       }
     });
-
-    return () => unsub(); // Limpeza de memória
+    return () => unsub();
   }, [initialUser?.uid, initialUser?.id]);
 
   const handleLogoutClick = async () => {
@@ -93,18 +88,33 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
     } catch (error) { console.error("Erro RS Logout:", error); }
   };
 
-  // ✅ Renderização de Conteúdo Dinâmica
   const renderContent = () => {
-    const currentUnidade = userContext?.unidade || user?.unidade || "Não vinculada";
+    const currentUnidade = (userContext?.unidade || user?.unidade || "não vinculada").toLowerCase();
     
-    // Dados para o Form (Passando o objeto user completo para o Form ter acesso ao Registro e Role no Header interno)
+    // ✅ DADOS NORMALIZADOS PARA OS FORMULÁRIOS
     const contextData = {
       ...user,
-      unidadeid: (userContext?.escolaId || user?.escolaId || "").toLowerCase(),
-      unidade: currentUnidade.toLowerCase(),
-      escola: currentUnidade.toLowerCase()
+      escolaId: (userContext?.escolaId || user?.escolaId || "").toLowerCase(),
+      escola: currentUnidade,
+      unidadeId: (userContext?.escolaId || user?.escolaId || "").toLowerCase(),
+      unidade: currentUnidade,
+      registroProfissional: (user?.registroProfissional || user?.coren || "n/a").toLowerCase()
     };
 
+    // 1. FICHA DE ATENDIMENTO
+    if (activeTab === "atendimento") {
+      return (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <AtendimentoEnfermagem 
+            user={contextData} 
+            onVoltar={() => setActiveTab("home")}
+            onVerHistorico={() => setActiveTab("historico")}
+          />
+        </div>
+      );
+    }
+
+    // 2. CADASTRO DE ALUNO
     if (activeTab === "pacientes" && cadastroMode === "aluno") {
       return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -129,7 +139,7 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
         <div className="p-8 flex-1 overflow-y-auto scrollbar-hide">
           <div className="mb-12 flex items-center gap-4">
             <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20"><Zap size={24} fill="white"/></div>
-            {isExpanded && <h2 className="text-2xl font-black uppercase italic tracking-tighter">BAENF<span className="text-blue-600">.RS</span></h2>}
+            {isExpanded && <h2 className="text-2xl font-black uppercase italic tracking-tighter text-slate-800">BAENF<span className="text-blue-600">.RS</span></h2>}
           </div>
 
           <nav className="space-y-2">
@@ -178,12 +188,11 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
           </nav>
         </div>
 
-        {/* RODAPÉ DA SIDEBAR COM EMAIL */}
+        {/* RODAPÉ SIDEBAR */}
         <div className="p-8 border-t border-slate-100 space-y-3">
            <button onClick={handleLogoutClick} className="flex items-center gap-4 text-rose-500 font-black uppercase italic text-[11px] hover:text-rose-700 transition-colors">
              <LogOut size={18}/> {isExpanded && "Encerrar Sessão"}
            </button>
-
            {isExpanded && user?.email && (
              <div className="flex items-center gap-2 px-1 opacity-50">
                <Mail size={12} className="text-slate-400" />
@@ -198,21 +207,22 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
         <header className={`h-24 border-b flex items-center justify-between px-10 ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
           <div className="flex items-center gap-6">
             <button onClick={() => setIsExpanded(!isExpanded)} className="p-3 hover:bg-slate-100 rounded-xl transition-all text-slate-400"><Menu size={24}/></button>
-            <div className="flex flex-col">
+            <div className="flex flex-col text-left">
               <h1 className="text-sm font-black uppercase italic tracking-[0.2em] text-slate-400 leading-none">
                 {MENU_ESTRUTURA.find(i => i.id === activeTab)?.label || "Dashboard"}
               </h1>
-              <p className="text-lg font-black uppercase tracking-tighter mt-1">{userContext?.unidade || "Unidade"}</p>
+              <p className="text-lg font-black uppercase tracking-tighter mt-1 text-slate-800">
+                {userContext?.unidade || "unidade"}
+              </p>
             </div>
           </div>
           
           <div className="flex items-center gap-6">
             <div className="text-right hidden md:block">
                <p className="text-[9px] font-black text-slate-400 uppercase italic">Profissional </p>
-               <p className="text-xs font-black text-blue-600 uppercase leading-tight">{user?.nome || "Usuário"}</p>
-               {/* ADICIONADO ROLE E REGISTRO PROFISSIONAL NO HEADER */}
+               <p className="text-xs font-black text-blue-600 uppercase leading-tight">{user?.nome || "usuário"}</p>
                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">
-                {user?.role} • REG: {user?.registroProfissional || "N/A"}
+                {user?.role} • REG: {user?.registroProfissional || "n/a"}
                </p>
             </div>
             <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all">
