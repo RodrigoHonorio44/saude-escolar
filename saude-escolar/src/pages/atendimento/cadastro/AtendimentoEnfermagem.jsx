@@ -3,7 +3,7 @@ import {
   ClipboardPlus, Clock, Hash, GraduationCap, Briefcase, 
   Home, Hospital, Search, UserCheck, Save, 
   Loader2, AlertTriangle, ArrowLeft, Info,
-  Activity, Baby, Thermometer, Ruler, Weight
+  Activity, Baby, Thermometer, Ruler, Weight, ShieldCheck
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { useAtendimentoLogica } from '../../../hooks/useAtendimentoEnfermagem';
@@ -27,11 +27,13 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
     formData, updateField, loading, 
     configUI, setConfigUI, 
     sugestoes, mostrarSugestoes, setMostrarSugestoes,
-    selecionarPaciente, salvarAtendimento, temCadastro 
+    selecionarPaciente, salvarAtendimento, temCadastro,
+    buscando, buscarPorVinculoDireto 
   } = useAtendimentoLogica(user);
 
   const [erroNome, setErroNome] = useState(false);
   const [isGestante, setIsGestante] = useState(false);
+  const [dadosBusca, setDadosBusca] = useState({ nome: '', dataNasc: '', mae: '' });
 
   // --- MAPEAMENTO DE SURTOS ---
   const GRUPOS_RISCO = {
@@ -51,7 +53,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
 
   const grupoDetectado = identificarGrupoRisco(formData.motivoAtendimento);
 
-  // --- FUNÇÕES DE FORMATAÇÃO (REGRA R S) ---
+  // --- FUNÇÕES DE FORMATAÇÃO ---
   const formatarCapitalize = (texto) => {
     if (!texto) return "";
     return texto.toLowerCase().replace(/(^\w|\s\w)/g, m => m.toUpperCase());
@@ -138,15 +140,62 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
 
       <form onSubmit={lidarSubmit} className="p-8 md:p-12 space-y-10">
         
-        {/* NÚMERO DA FICHA E HORA */}
+  {/* --- BUSCA INTELIGENTE (TEXTO LIVRE E DATA AMPLIADA) --- */}
+        <div className="max-w-4xl mx-auto bg-slate-50 border-2 border-dashed border-slate-200 p-6 rounded-[35px] space-y-4">
+          <div className="flex items-center gap-2 px-2">
+            <ShieldCheck size={18} className="text-blue-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest italic text-slate-600">Verificação de Vínculo R S (ID Único)</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-10 gap-3">
+            <input 
+              type="text"
+              className="md:col-span-3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="nome do aluno..."
+              value={dadosBusca.nome} 
+              onChange={(e) => setDadosBusca({...dadosBusca, nome: e.target.value})} 
+            />
+            
+            <input 
+              type="date"
+              className="md:col-span-3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
+              value={dadosBusca.dataNasc} 
+              onChange={(e) => setDadosBusca({...dadosBusca, dataNasc: e.target.value})} 
+            />
+
+            <input 
+              type="text"
+              className="md:col-span-2 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
+              placeholder="nome da mãe..."
+              value={dadosBusca.mae} 
+              onChange={(e) => setDadosBusca({...dadosBusca, mae: e.target.value})} 
+            />
+            
+            <button 
+              type="button"
+              onClick={() => {
+                const buscaTratada = {
+                  nome: (dadosBusca.nome || "").toLowerCase().trim(),
+                  dataNasc: dadosBusca.dataNasc,
+                  mae: (dadosBusca.mae || "").toLowerCase().trim()
+                };
+                buscarPorVinculoDireto(buscaTratada);
+              }}
+              className="md:col-span-2 bg-slate-800 hover:bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2"
+            >
+              {buscando ? <Loader2 size={16} className="animate-spin" /> : <><Search size={16} /> Pesquisar</>}
+            </button>
+          </div>
+        </div>
+
+        {/* NÚMERO DA FICHA E HORA BLOQUEADA */}
         <div className="flex flex-col md:flex-row justify-center items-center gap-4">
           <div className="bg-slate-900 px-6 py-3 rounded-2xl border-2 border-blue-500/30 flex items-center gap-3">
             <Hash size={18} className="text-blue-400" />
             <span className="text-blue-400 font-black tracking-widest text-base lowercase italic tabular-nums">{formData.baenf}</span>
           </div>
-          <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-200 flex items-center gap-3">
-            <Clock size={18} className="text-slate-600" />
-            <span className="text-slate-700 font-bold text-sm lowercase italic tabular-nums">início: {formData.horario}</span>
+          <div className="bg-slate-100 px-6 py-3 rounded-2xl border border-slate-200 flex items-center gap-3 opacity-80 shadow-inner">
+            <Clock size={18} className="text-slate-400" />
+            <span className="text-slate-500 font-bold text-sm lowercase italic tabular-nums">início: {formData.horario} (bloqueado)</span>
           </div>
         </div>
 
@@ -190,6 +239,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
                   setMostrarSugestoes(true);
                 }} 
               />
+              {/* LISTA DE SUGESTÕES */}
               {mostrarSugestoes && sugestoes.length > 0 && (
                 <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
                   {sugestoes.map((p) => (
@@ -209,27 +259,32 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             </div>
 
             <div className="md:col-span-2 space-y-2">
-              <div className="flex justify-between items-center px-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase italic tracking-widest">nascimento</label>
-                <button type="button" onClick={() => setConfigUI({...configUI, naoSabeDataNasc: !configUI.naoSabeDataNasc})} className={`text-[9px] font-black px-2 py-1 rounded-lg transition-all ${configUI.naoSabeDataNasc ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                  {configUI.naoSabeDataNasc ? 'soube a data' : 'não sei'}
-                </button>
+              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">nome da mãe *</label>
+              <input 
+                type="text" required 
+                placeholder="nome da mãe" 
+                className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold outline-none" 
+                value={formatarNomeExibicao(formData.nomeMae)} 
+                onChange={(e) => updateField('nomeMae', e.target.value.toLowerCase())} 
+              />
+            </div>
+
+            <div className="md:col-span-1 space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">nascimento</label>
+              <input type="date" required className="w-full rounded-2xl px-5 py-4 text-sm font-bold outline-none bg-blue-50 text-blue-900" value={formData.dataNascimento} onChange={(e) => updateField('dataNascimento', e.target.value)} />
+            </div>
+
+            <div className="md:col-span-1 space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">idade</label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold outline-none" 
+                  value={formData.idade} 
+                  onChange={(e) => updateField('idade', e.target.value)} 
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-300 uppercase">anos</span>
               </div>
-              <input type="date" disabled={configUI.naoSabeDataNasc} className={`w-full rounded-2xl px-5 py-4 text-sm font-bold outline-none tabular-nums ${configUI.naoSabeDataNasc ? 'bg-slate-200 text-slate-400' : 'bg-blue-50 text-blue-900'}`} value={formData.dataNascimento} onChange={(e) => updateField('dataNascimento', e.target.value)} />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">idade *</label>
-              <input type="number" required readOnly={!configUI.naoSabeDataNasc} className={`w-full border-none rounded-2xl px-5 py-4 text-sm font-bold tabular-nums ${!configUI.naoSabeDataNasc ? 'bg-slate-100 text-blue-600' : 'bg-orange-50 text-orange-700 ring-2 ring-orange-200'}`} value={formData.idade} onChange={(e) => updateField('idade', e.target.value)} />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">sexo</label>
-              <select required className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold outline-none lowercase" value={formData.sexo} onChange={(e) => updateField('sexo', e.target.value)}>
-                <option value="">...</option>
-                <option value="masculino">masculino</option>
-                <option value="feminino">feminino</option>
-              </select>
             </div>
           </div>
 
@@ -308,10 +363,18 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
               <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">data atend.</label>
               <input type="date" required className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold tabular-nums" value={formData.data} onChange={(e) => updateField('data', e.target.value)} />
             </div>
+            
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">horário</label>
-              <input type="time" required className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold tabular-nums" value={formData.horario} onChange={(e) => updateField('horario', e.target.value)} />
+              {/* CAMPO DE HORÁRIO BLOQUEADO (READONLY) */}
+              <input 
+                type="time" 
+                readOnly 
+                className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 text-sm font-bold tabular-nums text-slate-400 cursor-not-allowed" 
+                value={formData.horario} 
+              />
             </div>
+
             <div className="space-y-2">
               <label className="text-[10px] font-black text-blue-500 uppercase ml-2 italic tracking-widest block">{configUI.perfilPaciente === 'aluno' ? 'turma *' : 'cargo *'}</label>
               <input 
