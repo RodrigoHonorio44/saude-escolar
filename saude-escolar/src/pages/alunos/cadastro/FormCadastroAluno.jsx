@@ -35,6 +35,14 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
     register, handleSubmit, reset, watch, setValue, isSubmitting, handleBuscaRapida, salvarDados 
   } = useFormCadastroAluno(alunoParaEditar, dadosEdicao, defaultValues, onSucesso, usuarioLogado);
 
+  // 🧹 FUNÇÃO DA BORRACHA: Limpa formulário e busca
+  const executarLimpezaGeral = () => {
+    reset(defaultValues); // Limpa o React Hook Form
+    setSearchData({ nome: '', mae: '', nasc: '' }); // Limpa o estado da busca rápida
+    setShowSearch(false); // Fecha o painel de busca se estiver aberto
+    toast.success("FORMULÁRIO REINICIADO!");
+  };
+
   // Observadores de interface
   const watchDataNasc = watch("dataNascimento");
   const watchCep = watch("endereco_cep");
@@ -115,8 +123,13 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
             {showSearch ? "FECHAR BUSCA" : "BUSCAR ALUNO"}
           </button>
 
-          <button type="button" onClick={() => reset(defaultValues)} className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-rose-500 transition-colors text-[10px] font-black uppercase tracking-widest">
-            <Eraser size={16}/> LIMPAR
+          {/* 🎯 BOTÃO DA BORRACHA ATUALIZADO */}
+          <button 
+            type="button" 
+            onClick={executarLimpezaGeral} 
+            className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-rose-500 transition-colors text-[10px] font-black uppercase tracking-widest group"
+          >
+            <Eraser size={16} className="group-hover:rotate-12 transition-transform" /> LIMPAR
           </button>
 
           <button onClick={handleSubmit(salvarDados)} disabled={isSubmitting} className="flex items-center gap-3 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95">
@@ -158,6 +171,7 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
               />
             </div>
             <button 
+              type="button"
               onClick={() => handleBuscaRapida(searchData, setShowSearch, setSearchData)}
               className="px-8 py-3 bg-amber-600 text-white rounded-xl font-black uppercase text-xs hover:bg-amber-700 transition-all shadow-md flex items-center gap-2 h-[52px]"
             >

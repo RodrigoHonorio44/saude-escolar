@@ -139,7 +139,7 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
         <div className="p-8 flex-1 overflow-y-auto scrollbar-hide">
           <div className="mb-12 flex items-center gap-4">
             <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20"><Zap size={24} fill="white"/></div>
-            {isExpanded && <h2 className="text-2xl font-black uppercase italic tracking-tighter text-slate-800">BAENF<span className="text-blue-600">.RS</span></h2>}
+            {isExpanded && <h2 className="text-2xl font-black uppercase italic tracking-tighter text-slate-800">BAENF<span className="text-blue-600">.System</span></h2>}
           </div>
 
           <nav className="space-y-2">

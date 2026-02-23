@@ -72,7 +72,7 @@ const DICIONARIO_CID = {
 const FormSecaoSaudeCid = ({ formData, setFormData }) => {
   const [busca, setBusca] = useState("");
 
-  // ✅ Opções de Acessibilidade (Seleção Múltipla)
+  // ✅ Opções de Acessibilidade
   const OPCOES_ACESSIBILIDADE = [
     { id: 'cadeirante', label: 'Cadeirante', icon: <Accessibility size={18}/> },
     { id: 'muletas', label: 'Uso de Muletas', icon: <Accessibility size={18} className="rotate-45"/> },
@@ -91,37 +91,45 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
     );
   }, [busca]);
 
-  // ✅ Helper para atualizar o estado aninhado 'saude' (Força Lowercase conforme RS)
+  // ✅ Helper robusto para atualizar o estado aninhado 'saude'
   const updateSaude = (campo, valor) => {
     const valorFormatado = typeof valor === 'string' ? valor.toLowerCase() : valor;
     setFormData(prev => ({
       ...prev,
-      saude: { ...prev.saude, [campo]: valorFormatado }
+      saude: { 
+        ...(prev?.saude || {}), 
+        [campo]: valorFormatado 
+      }
     }));
   };
 
-  // ✅ Alternar seleção de acessibilidade (Múltiplas opções)
+  // ✅ Alternar seleção de acessibilidade
   const toggleAcessibilidade = (id) => {
-    const atuais = formData.saude.acessibilidades || [];
+    const atuais = formData?.saude?.acessibilidades || [];
     const novos = atuais.includes(id) 
       ? atuais.filter(item => item !== id) 
       : [...atuais, id];
     
     setFormData(prev => ({
       ...prev,
-      saude: { ...prev.saude, acessibilidades: novos }
+      saude: { 
+        ...(prev?.saude || {}), 
+        acessibilidades: novos 
+      }
     }));
   };
 
   const adicionarCid = (cod) => {
-    if (!formData.saude.cids.includes(cod)) {
-      updateSaude('cids', [...formData.saude.cids, cod]);
+    const cidsAtuais = formData?.saude?.cids || [];
+    if (!cidsAtuais.includes(cod)) {
+      updateSaude('cids', [...cidsAtuais, cod]);
     }
     setBusca("");
   };
 
   const removerCid = (cod) => {
-    updateSaude('cids', formData.saude.cids.filter(c => c !== cod));
+    const cidsAtuais = formData?.saude?.cids || [];
+    updateSaude('cids', cidsAtuais.filter(c => c !== cod));
   };
 
   return (
@@ -144,7 +152,6 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
           />
           <Search className="absolute left-5 top-5 text-slate-300" size={22} />
 
-          {/* Lista de Sugestões Flutuante */}
           {sugestoes.length > 0 && (
             <div className="absolute z-[100] w-full mt-2 bg-white border border-slate-100 shadow-2xl rounded-3xl overflow-hidden max-h-60 overflow-y-auto border-t-4 border-t-blue-500">
               {sugestoes.map(([cod, desc]) => (
@@ -167,10 +174,10 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
 
         {/* Tags de CIDs Selecionados */}
         <div className="flex flex-wrap gap-3">
-          {formData.saude.cids.length === 0 && (
+          {(!formData?.saude?.cids || formData.saude.cids.length === 0) && (
             <p className="text-[10px] font-bold text-slate-300 uppercase italic ml-2">Nenhum CID selecionado até o momento.</p>
           )}
-          {formData.saude.cids.map(cod => (
+          {formData?.saude?.cids?.map(cod => (
             <div key={cod} className="flex items-center gap-3 bg-slate-900 text-white pl-4 pr-2 py-2 rounded-2xl animate-in zoom-in duration-300 shadow-lg">
               <span className="text-[10px] font-black uppercase italic tracking-wider">{cod}</span>
               <button 
@@ -185,7 +192,7 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
         </div>
       </div>
 
-      {/* --- BLOCO DE ACESSIBILIDADE MÚLTIPLA (ATUALIZADO) --- */}
+      {/* --- BLOCO DE ACESSIBILIDADE MÚLTIPLA --- */}
       <div className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Accessibility size={20}/></div>
@@ -196,7 +203,7 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {OPCOES_ACESSIBILIDADE.map((opt) => {
-            const ativo = formData.saude.acessibilidades?.includes(opt.id);
+            const ativo = formData?.saude?.acessibilidades?.includes(opt.id);
             return (
               <button
                 key={opt.id}
@@ -231,17 +238,17 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
                   key={opt}
                   type="button"
                   onClick={() => updateSaude('temAlergia', opt)}
-                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase italic transition-all ${formData.saude.temAlergia === opt ? 'bg-rose-500 text-white shadow-xl shadow-rose-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase italic transition-all ${formData?.saude?.temAlergia === opt ? 'bg-rose-500 text-white shadow-xl shadow-rose-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                 >
                   {opt}
                 </button>
               ))}
             </div>
-            {formData.saude.temAlergia === 'sim' && (
+            {formData?.saude?.temAlergia === 'sim' && (
               <input
                 type="text"
                 placeholder="especifique as alergias..."
-                value={formData.saude.alergiasDesc}
+                value={formData?.saude?.alergiasDesc || ""}
                 onChange={(e) => updateSaude('alergiasDesc', e.target.value)}
                 className="w-full p-4 rounded-2xl border-2 border-slate-50 bg-slate-50 text-[11px] font-bold uppercase outline-none focus:border-rose-400 focus:bg-white transition-all shadow-inner"
               />
@@ -259,17 +266,17 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
                   key={opt}
                   type="button"
                   onClick={() => updateSaude('usaMedicamento', opt)}
-                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase italic transition-all ${formData.saude.usaMedicamento === opt ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase italic transition-all ${formData?.saude?.usaMedicamento === opt ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                 >
                   {opt}
                 </button>
               ))}
             </div>
-            {formData.saude.usaMedicamento === 'sim' && (
+            {formData?.saude?.usaMedicamento === 'sim' && (
               <input
                 type="text"
                 placeholder="nome, dosagem e horários..."
-                value={formData.saude.medicamentoDesc}
+                value={formData?.saude?.medicamentoDesc || ""}
                 onChange={(e) => updateSaude('medicamentoDesc', e.target.value)}
                 className="w-full p-4 rounded-2xl border-2 border-slate-50 bg-slate-50 text-[11px] font-bold uppercase outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner"
               />
@@ -282,7 +289,7 @@ const FormSecaoSaudeCid = ({ formData, setFormData }) => {
             <input
               type="text"
               placeholder="ex: intolerância à lactose, glúten..."
-              value={formData.saude.restricaoAlimentar}
+              value={formData?.saude?.restricaoAlimentar || ""}
               onChange={(e) => updateSaude('restricaoAlimentar', e.target.value)}
               className="w-full p-4 rounded-2xl border-2 border-slate-50 bg-slate-50 text-[11px] font-bold uppercase outline-none focus:border-emerald-400 focus:bg-white transition-all shadow-inner"
             />

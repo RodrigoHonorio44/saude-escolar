@@ -23,7 +23,7 @@ export function Sidebar({ userRole }) {
   return (
     <aside className="w-64 h-screen bg-slate-900 text-white fixed left-0 top-0 flex flex-col shadow-2xl">
       <div className="p-6 text-center border-b border-slate-800">
-        <h2 className="text-2xl font-black italic text-blue-500 tracking-tighter uppercase">sistema r s</h2>
+        <h2 className="text-2xl font-black italic text-blue-500 tracking-tighter uppercase">sistema </h2>
         <p className="text-[10px] uppercase tracking-widest text-slate-400">saúde escolar</p>
       </div>
       <nav className="flex-1 p-4 space-y-1">

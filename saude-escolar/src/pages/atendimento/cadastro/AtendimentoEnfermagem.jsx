@@ -3,7 +3,7 @@ import {
   ClipboardPlus, Clock, Hash, GraduationCap, Briefcase, 
   Home, Hospital, Search, UserCheck, Save, 
   Loader2, AlertTriangle, ArrowLeft, Info,
-  Activity, Baby, Thermometer, Ruler, Weight, ShieldCheck
+  Activity, Baby, Thermometer, Ruler, Weight, ShieldCheck, Eraser
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { useAtendimentoLogica } from '../../../hooks/useAtendimentoEnfermagem';
@@ -28,12 +28,22 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
     configUI, setConfigUI, 
     sugestoes, mostrarSugestoes, setMostrarSugestoes,
     selecionarPaciente, salvarAtendimento, temCadastro,
-    buscando, buscarPorVinculoDireto 
+    buscando, buscarPorVinculoDireto,
+    resetForm // Assumindo que o hook exporta o reset
   } = useAtendimentoLogica(user);
 
   const [erroNome, setErroNome] = useState(false);
   const [isGestante, setIsGestante] = useState(false);
   const [dadosBusca, setDadosBusca] = useState({ nome: '', dataNasc: '', mae: '' });
+
+  // ✅ FUNÇÃO PARA LIMPAR TUDO (BORRACHA)
+  const handleLimparTudo = () => {
+    setDadosBusca({ nome: '', dataNasc: '', mae: '' });
+    setIsGestante(false);
+    setErroNome(false);
+    if (resetForm) resetForm();
+    toast.success("CAMPOS REINICIADOS", { icon: '🧼' });
+  };
 
   // --- MAPEAMENTO DE SURTOS ---
   const GRUPOS_RISCO = {
@@ -88,6 +98,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
     try {
       const sucesso = await salvarAtendimento(e);
       if (sucesso) {
+        toast.success("ATENDIMENTO SALVO COM SUCESSO!");
         if (configUI.perfilPaciente === 'funcionario' && typeof onAbrirPastaDigital === 'function') {
           onAbrirPastaDigital({
             ...formData,
@@ -95,7 +106,8 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             pacienteId: formData.pacienteId || nomeNormalizado.replace(/\s+/g, '-')
           });
         } else {
-          onVoltar();
+          // Em vez de voltar, limpamos para o próximo atendimento
+          handleLimparTudo();
         }
       }
     } catch (error) {
@@ -140,12 +152,24 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
 
       <form onSubmit={lidarSubmit} className="p-8 md:p-12 space-y-10">
         
-  {/* --- BUSCA INTELIGENTE (TEXTO LIVRE E DATA AMPLIADA) --- */}
+        {/* --- BUSCA INTELIGENTE COM BOTÃO BORRACHA --- */}
         <div className="max-w-4xl mx-auto bg-slate-50 border-2 border-dashed border-slate-200 p-6 rounded-[35px] space-y-4">
-          <div className="flex items-center gap-2 px-2">
-            <ShieldCheck size={18} className="text-blue-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest italic text-slate-600">Verificação de Vínculo R S (ID Único)</span>
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={18} className="text-blue-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest italic text-slate-600">VERIFICAÇÃO DE ALUNO NO SISTEMA</span>
+            </div>
+
+            <button 
+              type="button" 
+              onClick={handleLimparTudo}
+              className="flex items-center gap-2 text-[10px] font-black text-slate-400 hover:text-red-500 transition-all uppercase bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm group"
+            >
+              <Eraser size={14} className="group-hover:rotate-12 transition-transform" /> 
+              limpar busca e campos
+            </button>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-10 gap-3">
             <input 
               type="text"
@@ -239,7 +263,6 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
                   setMostrarSugestoes(true);
                 }} 
               />
-              {/* LISTA DE SUGESTÕES */}
               {mostrarSugestoes && sugestoes.length > 0 && (
                 <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
                   {sugestoes.map((p) => (
@@ -338,7 +361,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
                 <option value="indígena">indígena</option>
               </select>
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between items-center px-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase italic tracking-widest">peso (kg)</label>
@@ -366,7 +389,6 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">horário</label>
-              {/* CAMPO DE HORÁRIO BLOQUEADO (READONLY) */}
               <input 
                 type="time" 
                 readOnly 
@@ -386,7 +408,6 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             </div>
           </div>
 
-          {/* SINAIS VITAIS ADICIONAIS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-red-500 uppercase ml-2 italic tracking-widest block">temperatura *</label>
@@ -435,7 +456,6 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
                     {queixasComuns.map(q => <option key={q} value={q.toLowerCase()} />)}
                   </datalist>
 
-                  {/* CAMPOS CONDICIONAIS DE SAÚDE */}
                   {formData.motivoAtendimento === 'hipertensão' && (
                     <div className="mt-4 p-4 bg-red-50 rounded-2xl border-2 border-red-100 animate-in zoom-in-95">
                       <label className="text-[10px] font-black text-red-600 uppercase ml-1 block mb-2 italic tracking-widest">pressão arterial (pa) *</label>
@@ -516,7 +536,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
           )}
         </div>
 
-        {/* ASSINATURA E SUBMISSÃO */}
+        {/* ASSINATURA E SUBMISSÃO FINAL */}
         <div className="pt-10 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4 bg-slate-900 px-8 py-5 rounded-[25px] border-2 border-blue-500/20 w-full md:w-auto shadow-xl">
             <div className="bg-blue-600 p-2.5 rounded-xl"><UserCheck size={22} className="text-white" /></div>
@@ -524,7 +544,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
               <span className="text-[9px] text-blue-400 font-black uppercase tracking-[0.2em] mb-0.5">assinatura digital baenf</span>
               <p className="text-white font-black text-lg italic leading-none tracking-tight">{formatarNomeExibicao(user?.nome) || 'profissional'}</p>
               <span className="text-emerald-400 text-[10px] font-bold lowercase tracking-[0.1em] mt-1 italic">
-                {user?.cargo?.toLowerCase() || 'enfermagem'} — reg: {user?.registroProfissional}
+                {user?.cargo?.toLowerCase() || 'enfermagem'} — reg: {user?.registroProfissional || 'n/a'}
               </span>
             </div>
           </div>

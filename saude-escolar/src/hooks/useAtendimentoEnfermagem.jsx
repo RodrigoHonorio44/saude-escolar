@@ -16,11 +16,14 @@ export const useAtendimentoLogica = (user) => {
     tipoAtendimento: 'local', 
     perfilPaciente: 'aluno',
     houveMedicacao: 'não',
-    modoPesquisa: 'simples' // simples ou inteligente
+    modoPesquisa: 'simples'
   });
 
+  // ✅ GERADOR DE ID ÚNICO PARA O ATENDIMENTO
+  const gerarNovoBaenf = () => `baenf-2026-${Math.random().toString(36).substring(2, 8).toLowerCase()}`;
+
   const getInitialFormState = useCallback(() => ({
-    baenf: `baenf-2026-${Math.random().toString(36).substring(2, 8).toLowerCase()}`,
+    baenf: gerarNovoBaenf(),
     data: new Date().toISOString().split('T')[0],
     horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     horaFim: '', 
@@ -39,11 +42,18 @@ export const useAtendimentoLogica = (user) => {
     procedimentos: '',
     observacoes: '',
     pacienteId: '', 
+    gestante: 'nao',
+    dum: '',
+    semanasGestacao: '',
+    preNatal: 'nao',
     saude: {
       cids: [],
+      acessibilidades: [],
       alergiasDesc: '',
       temAlergia: 'não',
-      usaMedicamento: 'não'
+      usaMedicamento: 'não',
+      restricaoAlimentar: '',
+      medicamentoDesc: ''
     },
     contatos: {
       nome: '',
@@ -54,27 +64,42 @@ export const useAtendimentoLogica = (user) => {
 
   const [formData, setFormData] = useState(getInitialFormState());
 
-  // ✅ 1. BUSCA POR VÍNCULO DIRETO (NOME + DATA + MÃE + UNIDADE)
+  // ✅ FUNÇÃO PARA LIMPAR TUDO E RECOMEÇAR (EXPOSTA PARA O COMPONENTE)
+  const resetForm = useCallback(() => {
+    setFormData(getInitialFormState());
+    setSugestoes([]);
+    setMostrarSugestoes(false);
+  }, [getInitialFormState]);
+
+  const normalizarParaId = (texto) => {
+    if (!texto) return "";
+    return texto
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .replace(/\s+/g, '-');
+  };
+
   const buscarPorVinculoDireto = async (dados) => {
     const { nome, dataNasc, mae } = dados;
-    if (!nome || !dataNasc || !mae) return toast.error("preencha os 3 campos para buscar!");
+    if (!nome || !dataNasc || !mae) return toast.error("PREENCHA OS 3 CAMPOS PARA BUSCAR!");
 
     setBuscando(true);
     try {
-      const nomeLimpo = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").toLowerCase();
-      const maeLimpa = mae.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").toLowerCase();
-      const dataLimpa = dataNasc.replace(/-/g, "");
-      const unidadeId = user.unidadeid.toLowerCase();
+      const nomeId = normalizarParaId(nome);
+      const maeId = normalizarParaId(mae);
+      const dataId = dataNasc.replace(/\D/g, "");
+      const unidadeId = user?.unidadeid?.toLowerCase() || user?.unidadeId?.toLowerCase();
       
-      const idProcurado = `${nomeLimpo}_${dataLimpa}_${maeLimpa}_${unidadeId}`;
+      const idProcurado = `${nomeId}_${dataId}_${maeId}_${unidadeId}`;
       const docRef = doc(db, "pastas_digitais", idProcurado);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         selecionarPaciente({ id: docSnap.id, ...docSnap.data() });
-        toast.success("aluno localizado!");
+        toast.success("ALUNO LOCALIZADO NO SISTEMA!");
       } else {
-        // Aluno não cadastrado: Já prepara o ID para o novo vínculo
         setFormData(prev => ({ 
           ...prev, 
           pacienteId: idProcurado, 
@@ -82,14 +107,13 @@ export const useAtendimentoLogica = (user) => {
           nomeMae: mae.toLowerCase(), 
           dataNascimento: dataNasc 
         }));
-        toast.error("aluno não cadastrado. o vínculo será criado ao salvar.");
+        toast.error("ALUNO NÃO CADASTRADO. O VÍNCULO SERÁ CRIADO AO SALVAR.");
       }
     } catch (error) {
-      toast.error("erro na busca inteligente");
+      toast.error("ERRO NA BUSCA INTELIGENTE");
     } finally { setBuscando(false); }
   };
 
-  // ✅ 2. BUSCA DE SUGESTÕES SIMPLES
   const buscarSugestoes = useCallback(async (busca) => {
     if (busca.length < 3) {
       setSugestoes([]);
@@ -113,7 +137,6 @@ export const useAtendimentoLogica = (user) => {
     } finally { setBuscando(false); }
   }, [configUI.perfilPaciente]);
 
-  // ✅ 3. CÁLCULO DE IDADE AUTOMÁTICO
   useEffect(() => {
     if (formData.dataNascimento) {
       const hoje = new Date();
@@ -127,10 +150,18 @@ export const useAtendimentoLogica = (user) => {
     }
   }, [formData.dataNascimento]);
 
-  // ✅ 4. ATUALIZAÇÃO DE CAMPOS E IMC
   const updateField = useCallback((campo, valor) => {
+    const valorFormatado = typeof valor === 'string' ? valor.toLowerCase() : valor;
+    
     setFormData(prev => {
-      const valorFormatado = typeof valor === 'string' ? valor.toLowerCase() : valor;
+      if (campo.includes('.')) {
+        const [obj, key] = campo.split('.');
+        return {
+          ...prev,
+          [obj]: { ...prev[obj], [key]: valorFormatado }
+        };
+      }
+
       let novoEstado = { ...prev, [campo]: valorFormatado };
       if (campo === 'peso' || campo === 'altura') {
         const p = parseFloat(String(novoEstado.peso).replace(',', '.'));
@@ -141,45 +172,46 @@ export const useAtendimentoLogica = (user) => {
     });
   }, []);
 
-  // ✅ 5. SELECIONAR PACIENTE
   const selecionarPaciente = (p) => {
     setMostrarSugestoes(false);
     setFormData(prev => ({
       ...prev,
       pacienteId: p.id,
-      nomePaciente: p.nome || "",
+      nomePaciente: p.nome || p.nomePaciente || "",
       nomeMae: p.nomeMae || "",
       dataNascimento: p.dataNascimento || "",
       sexo: p.sexo || "",
       turma: p.turma || "",
+      cargo: p.cargo || "",
       peso: p.peso || "",
       altura: p.altura || "",
       saude: {
-        cids: p.saude?.cids || p.cids || [],
-        alergiasDesc: p.saude?.alergiasDesc || p.alergiasDesc || "",
-        temAlergia: p.saude?.temAlergia || p.temAlergia || "não",
-        usaMedicamento: p.saude?.usaMedicamento || p.usaMedicamento || "não"
+        cids: p.saude?.cids || [],
+        acessibilidades: p.saude?.acessibilidades || [],
+        alergiasDesc: p.saude?.alergiasDesc || "",
+        temAlergia: p.saude?.temAlergia || "não",
+        usaMedicamento: p.saude?.usaMedicamento || "não",
+        restricaoAlimentar: p.saude?.restricaoAlimentar || "",
+        medicamentoDesc: p.saude?.medicamentoDesc || ""
       }
     }));
   };
 
-  // ✅ 6. SALVAMENTO DUPLO (ATENDIMENTO + PASTA DIGITAL)
   const salvarAtendimento = async (e) => {
     if (e) e.preventDefault();
-    const unidadeId = user?.unidadeid?.toLowerCase();
-    if (!unidadeId) return toast.error("unidade não identificada!");
+    const unidadeId = user?.unidadeid?.toLowerCase() || user?.unidadeId?.toLowerCase();
+    if (!unidadeId) return toast.error("UNIDADE NÃO IDENTIFICADA!");
 
     setLoading(true);
-    const toastId = toast.loading("salvando atendimento...");
+    const toastId = toast.loading("SALVANDO ATENDIMENTO...");
 
     try {
       const batch = writeBatch(db);
       
-      // Geração do ID composto (mesmo que o aluno não tenha sido selecionado via busca)
-      const nomeLimpo = formData.nomePaciente.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").toLowerCase();
-      const maeLimpa = formData.nomeMae.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").toLowerCase();
-      const dataLimpa = formData.dataNascimento.replace(/-/g, "");
-      const idVinculoRS = `${nomeLimpo}_${dataLimpa}_${maeLimpa}_${unidadeId}`;
+      const nomeId = normalizarParaId(formData.nomePaciente);
+      const maeId = normalizarParaId(formData.nomeMae);
+      const dataId = formData.dataNascimento.replace(/\D/g, "");
+      const idVinculoRS = `${nomeId}_${dataId}_${maeId}_${unidadeId}`;
 
       const finalAtendimento = {
         ...formData,
@@ -191,29 +223,35 @@ export const useAtendimentoLogica = (user) => {
         horaFim: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
 
-      // Grava Atendimento
+      // 1. Grava o Atendimento
       batch.set(doc(db, "atendimento_enfermagem", formData.baenf), finalAtendimento);
 
-      // Atualiza ou Cria Pasta Digital
+      // 2. Atualiza/Cria Pasta Digital
       batch.set(doc(db, "pastas_digitais", idVinculoRS), {
         nome: formData.nomePaciente.toLowerCase(),
         nomeMae: formData.nomeMae.toLowerCase(),
         dataNascimento: formData.dataNascimento,
         sexo: formData.sexo,
         turma: formData.turma,
+        cargo: formData.cargo,
         unidadeid: unidadeId,
         peso: formData.peso,
         altura: formData.altura,
         imc: formData.imc,
+        saude: formData.saude,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
       await batch.commit();
-      toast.success("atendimento e vínculo salvos!", { id: toastId });
-      setFormData(getInitialFormState());
+      toast.success("ATENDIMENTO FINALIZADO COM SUCESSO!", { id: toastId });
+      
+      // ✅ LIMPA O FORMULÁRIO MAS MANTÉM ABERTURA PARA PRÓXIMO ALUNO
+      resetForm();
+      
       return true;
     } catch (err) {
-      toast.error("erro ao salvar!");
+      console.error(err);
+      toast.error("ERRO AO SALVAR!", { id: toastId });
       return false;
     } finally { setLoading(false); }
   };
@@ -221,6 +259,7 @@ export const useAtendimentoLogica = (user) => {
   return {
     formData, updateField, loading, configUI, setConfigUI,
     sugestoes, mostrarSugestoes, setMostrarSugestoes, buscando,
-    buscarSugestoes, selecionarPaciente, salvarAtendimento, buscarPorVinculoDireto
+    buscarSugestoes, selecionarPaciente, salvarAtendimento, 
+    buscarPorVinculoDireto, resetForm
   };
 };

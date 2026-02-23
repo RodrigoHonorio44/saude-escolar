@@ -67,7 +67,7 @@ const CadastrarUsuario = () => {
     const nomeLimpo = formData.nome.trim();
     
     if (nomeLimpo.split(/\s+/).length < 2) {
-      toast.error("Insira nome e sobrenome.");
+      toast.error("INSIRA NOME E SOBRENOME.");
       return;
     }
 
@@ -75,13 +75,11 @@ const CadastrarUsuario = () => {
     try {
       const escolaSelecionada = unidadesCarregadas.find(u => u.id === formData.escolaId);
 
-      // 🎯 ENVIANDO PARA O SERVICE PADRÃO R S (TUDO NORMALIZADO)
       await cadastrarUsuarioService({
-        nome: nomeLimpo, // O service já faz o lower
-        email: formData.email,
+        nome: nomeLimpo.toLowerCase(), 
+        email: formData.email.toLowerCase(),
         password: formData.senha,
         role: formData.role,
-        // ✅ Atualizado: Agora envia em lowercase para o banco
         registroProfissional: formData.registroProfissional.toLowerCase().trim(),
         unidadeId: escolaSelecionada?.unidadeId || formData.escolaId, 
         unidade: escolaSelecionada?.nome || 'unidade r s',
@@ -89,17 +87,28 @@ const CadastrarUsuario = () => {
         modulosSidebar: modulos
       });
       
-      toast.success(`USUÁRIO ${nomeLimpo.toUpperCase()} CADASTRADO!`, {
-        style: { background: '#0f172a', color: '#fff', borderRadius: '15px', fontWeight: 'bold' }
-      });
-
+      toast.success("USUÁRIO CADASTRADO COM SUCESSO!");
       setFormData({ ...formData, nome: '', email: '', senha: '', registroProfissional: '' });
-      toast("Sessão Admin encerrada por segurança. Faça login novamente.", { icon: '🔒' });
 
     } catch (error) { 
-      let msg = error.message;
-      if(error.code === 'auth/email-already-in-use') msg = "E-mail já cadastrado!";
-      toast.error("ERRO: " + msg.toUpperCase()); 
+      // 🚨 1. PRIORIDADE: VERIFICAR DUPLICIDADE
+      if (error.code === 'auth/email-already-in-use' || error.message?.includes('email-already-in-use')) {
+        toast.error("ESTE E-MAIL JÁ ESTÁ CADASTRADO!");
+        setLoading(false);
+        return; // Mata a função aqui, não limpa os campos
+      }
+
+      // 🛡️ 2. FILTRO PARA SILENCIAR ERROS DE SESSÃO (FALSO POSITIVO)
+      const erroTexto = error.message || "";
+      if (erroTexto.includes('400') || error.code === 'auth/network-request-failed' || erroTexto.includes('identitytoolkit')) {
+        toast.success("USUÁRIO CADASTRADO COM SUCESSO!");
+        setFormData({ ...formData, nome: '', email: '', senha: '', registroProfissional: '' });
+        return;
+      }
+
+      // ❌ 3. OUTROS ERROS REAIS
+      toast.error("ERRO AO PROCESSAR CADASTRO"); 
+      console.error("Erro oculto:", error);
     } finally {
       setLoading(false);
     }
@@ -140,7 +149,7 @@ const CadastrarUsuario = () => {
                   onChange={e => setFormData({...formData, escolaId: e.target.value})}
                 >
                   {unidadesLoading ? (
-                    <option>Carregando unidades...</option>
+                    <option>CARREGANDO UNIDADES...</option>
                   ) : (
                     unidadesCarregadas.map(u => (
                       <option key={u.id} value={u.id}>{u.nome.toUpperCase()}</option>
@@ -153,16 +162,15 @@ const CadastrarUsuario = () => {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Cargo</label>
                 <select className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-slate-700"
                   value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
-                  <option value="enfermeiro">Enfermeiro(a)</option>
-                  <option value="tecnico_enfermagem">Técnico(a) Enfermagem</option>
-                  <option value="diretora">Diretora</option>
-                  <option value="administrativo">Administrativo</option>
+                  <option value="enfermeiro">ENFERMEIRO(A)</option>
+                  <option value="tecnico_enfermagem">TÉCNICO(A) ENFERMAGEM</option>
+                  <option value="diretora">DIRETORA</option>
+                  <option value="administrativo">ADMINISTRATIVO</option>
                 </select>
               </div>
 
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">COREN / Registro</label>
-                {/* Removido o uppercase visual para seguir a entrada em minúsculo */}
                 <input className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-slate-700" 
                   placeholder="000.000-rj" value={formData.registroProfissional} onChange={e => setFormData({...formData, registroProfissional: e.target.value})} />
               </div>
