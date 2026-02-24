@@ -3,7 +3,7 @@ import {
   ClipboardPlus, Clock, Hash, GraduationCap, Briefcase, 
   Home, Hospital, Search, UserCheck, Save, 
   Loader2, AlertTriangle, ArrowLeft, Info,
-  Activity, Baby, Thermometer, Ruler, Weight, ShieldCheck, Eraser
+  Activity, Baby, Thermometer, Ruler, Weight, ShieldCheck, Eraser, CreditCard, User
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { useAtendimentoLogica } from '../../../hooks/useAtendimentoEnfermagem';
@@ -13,7 +13,7 @@ const AlertaHistoricoPCD = ({ temCadastro, onVerHistorico }) => {
   if (!temCadastro) return null;
   return (
     <button 
-      type="button"
+      type="button" 
       onClick={onVerHistorico}
       className="bg-amber-100 hover:bg-amber-200 text-amber-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all border border-amber-200"
     >
@@ -29,16 +29,16 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
     sugestoes, mostrarSugestoes, setMostrarSugestoes,
     selecionarPaciente, salvarAtendimento, temCadastro,
     buscando, buscarPorVinculoDireto,
-    resetForm // Assumindo que o hook exporta o reset
+    resetForm 
   } = useAtendimentoLogica(user);
 
   const [erroNome, setErroNome] = useState(false);
   const [isGestante, setIsGestante] = useState(false);
-  const [dadosBusca, setDadosBusca] = useState({ nome: '', dataNasc: '', mae: '' });
+  const [dadosBusca, setDadosBusca] = useState({ nome: '', dataNasc: '', identificador: '' });
 
   // ✅ FUNÇÃO PARA LIMPAR TUDO (BORRACHA)
   const handleLimparTudo = () => {
-    setDadosBusca({ nome: '', dataNasc: '', mae: '' });
+    setDadosBusca({ nome: '', dataNasc: '', identificador: '' });
     setIsGestante(false);
     setErroNome(false);
     if (resetForm) resetForm();
@@ -106,7 +106,6 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             pacienteId: formData.pacienteId || nomeNormalizado.replace(/\s+/g, '-')
           });
         } else {
-          // Em vez de voltar, limpamos para o próximo atendimento
           handleLimparTudo();
         }
       }
@@ -152,64 +151,94 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
 
       <form onSubmit={lidarSubmit} className="p-8 md:p-12 space-y-10">
         
-        {/* --- BUSCA INTELIGENTE COM BOTÃO BORRACHA --- */}
-        <div className="max-w-4xl mx-auto bg-slate-50 border-2 border-dashed border-slate-200 p-6 rounded-[35px] space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={18} className="text-blue-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest italic text-slate-600">VERIFICAÇÃO DE ALUNO NO SISTEMA</span>
-            </div>
+       {/* BUSCA INTELIGENTE COM SELETOR DE PERFIL INTEGRADO */}
+<div className="max-w-4xl mx-auto bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-[40px] space-y-6 shadow-sm">
+  
+  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-2">
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <ShieldCheck size={18} className="text-blue-500" />
+        <span className="text-[10px] font-black uppercase tracking-widest italic text-slate-600">
+          verificação de cadastro no sistema
+        </span>
+      </div>
+      <p className="text-[9px] font-bold text-slate-400 uppercase italic ml-7">
+        selecione o perfil para pesquisar
+      </p>
+    </div>
 
-            <button 
-              type="button" 
-              onClick={handleLimparTudo}
-              className="flex items-center gap-2 text-[10px] font-black text-slate-400 hover:text-red-500 transition-all uppercase bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm group"
-            >
-              <Eraser size={14} className="group-hover:rotate-12 transition-transform" /> 
-              limpar busca e campos
-            </button>
-          </div>
+    {/* SELETOR DE PERFIL DENTRO DA BUSCA */}
+    <div className="bg-white p-1.5 rounded-2xl flex border border-slate-200 shadow-sm w-full md:w-auto">
+      <button 
+        type="button" 
+        onClick={() => setConfigUI({...configUI, perfilPaciente: 'aluno'})} 
+        className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black text-[10px] transition-all flex items-center justify-center gap-2 uppercase tracking-tighter ${configUI.perfilPaciente === 'aluno' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:bg-slate-50'}`}
+      >
+        <GraduationCap size={14} /> aluno
+      </button>
+      <button 
+        type="button" 
+        onClick={() => setConfigUI({...configUI, perfilPaciente: 'funcionario'})} 
+        className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black text-[10px] transition-all flex items-center justify-center gap-2 uppercase tracking-tighter ${configUI.perfilPaciente === 'funcionario' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-slate-400 hover:bg-slate-50'}`}
+      >
+        <Briefcase size={14} /> funcionário
+      </button>
+    </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-10 gap-3">
-            <input 
-              type="text"
-              className="md:col-span-3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="nome do aluno..."
-              value={dadosBusca.nome} 
-              onChange={(e) => setDadosBusca({...dadosBusca, nome: e.target.value})} 
-            />
-            
-            <input 
-              type="date"
-              className="md:col-span-3 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
-              value={dadosBusca.dataNasc} 
-              onChange={(e) => setDadosBusca({...dadosBusca, dataNasc: e.target.value})} 
-            />
+    <button 
+      type="button" 
+      onClick={handleLimparTudo} 
+      className="flex items-center gap-2 text-[10px] font-black text-slate-400 hover:text-red-500 transition-all uppercase bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm group"
+    >
+      <Eraser size={14} className="group-hover:rotate-12 transition-transform" /> limpar busca
+    </button>
+  </div>
 
-            <input 
-              type="text"
-              className="md:col-span-2 bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="nome da mãe..."
-              value={dadosBusca.mae} 
-              onChange={(e) => setDadosBusca({...dadosBusca, mae: e.target.value})} 
-            />
-            
-            <button 
-              type="button"
-              onClick={() => {
-                const buscaTratada = {
-                  nome: (dadosBusca.nome || "").toLowerCase().trim(),
-                  dataNasc: dadosBusca.dataNasc,
-                  mae: (dadosBusca.mae || "").toLowerCase().trim()
-                };
-                buscarPorVinculoDireto(buscaTratada);
-              }}
-              className="md:col-span-2 bg-slate-800 hover:bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2"
-            >
-              {buscando ? <Loader2 size={16} className="animate-spin" /> : <><Search size={16} /> Pesquisar</>}
-            </button>
-          </div>
-        </div>
+  {/* CAMPOS DE BUSCA DINÂMICOS */}
+  <div className="grid grid-cols-1 md:grid-cols-10 gap-3">
+    <div className="md:col-span-3 space-y-1">
+      <input 
+        type="text"
+        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
+        placeholder={`nome do ${configUI.perfilPaciente}...`}
+        value={dadosBusca.nome} 
+        onChange={(e) => setDadosBusca({...dadosBusca, nome: e.target.value})} 
+      />
+    </div>
+    
+    <div className="md:col-span-3 space-y-1">
+      <input 
+        type="date"
+        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-500"
+        value={dadosBusca.dataNasc} 
+        onChange={(e) => setDadosBusca({...dadosBusca, dataNasc: e.target.value})} 
+      />
+    </div>
+
+    <div className="md:col-span-2 space-y-1">
+      <input 
+        type="text"
+        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20"
+        placeholder={configUI.perfilPaciente === 'aluno' ? "nome da mãe..." : "cpf / matrícula..."}
+        value={dadosBusca.identificador} 
+        onChange={(e) => setDadosBusca({...dadosBusca, identificador: e.target.value})} 
+      />
+    </div>
+    
+    <button 
+      type="button"
+      onClick={() => buscarPorVinculoDireto({
+        nome: dadosBusca.nome.toLowerCase().trim(),
+        dataNasc: dadosBusca.dataNasc,
+        identificador: dadosBusca.identificador.toLowerCase().trim(),
+        tipo: configUI.perfilPaciente // Passa o tipo para o hook saber onde procurar
+      })}
+      className={`md:col-span-2 rounded-xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 shadow-lg ${configUI.perfilPaciente === 'aluno' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-100' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'} text-white`}
+    >
+      {buscando ? <Loader2 size={16} className="animate-spin" /> : <><Search size={16} /> Pesquisar</>}
+    </button>
+  </div>
+</div>
 
         {/* NÚMERO DA FICHA E HORA BLOQUEADA */}
         <div className="flex flex-col md:flex-row justify-center items-center gap-4">
@@ -282,13 +311,14 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             </div>
 
             <div className="md:col-span-2 space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">nome da mãe *</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest block">
+                {configUI.perfilPaciente === 'aluno' ? 'nome da mãe *' : 'cpf / matrícula *'}
+              </label>
               <input 
                 type="text" required 
-                placeholder="nome da mãe" 
                 className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold outline-none" 
-                value={formatarNomeExibicao(formData.nomeMae)} 
-                onChange={(e) => updateField('nomeMae', e.target.value.toLowerCase())} 
+                value={configUI.perfilPaciente === 'aluno' ? formatarNomeExibicao(formData.nomeMae) : formData.cpf} 
+                onChange={(e) => updateField(configUI.perfilPaciente === 'aluno' ? 'nomeMae' : 'cpf', e.target.value.toLowerCase())} 
               />
             </div>
 
@@ -328,7 +358,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             </button>
 
             {isGestante && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-pink-50/50 rounded-[30px] border-2 border-pink-100 animate-in zoom-in-95 duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-pink-50/50 rounded-[30px] border-2 border-pink-100 animate-in zoom-in-95 duration-200 text-left">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-pink-600 uppercase ml-2 tracking-widest block">dum (última menstruação)</label>
                   <input type="date" className="w-full bg-white border-none rounded-xl px-5 py-3 text-sm font-bold text-pink-900" value={formData.dum || ''} onChange={(e) => updateField('dum', e.target.value)} />
@@ -408,7 +438,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-red-500 uppercase ml-2 italic tracking-widest block">temperatura *</label>
               <input type="number" step="0.1" required placeholder="00.0" className="w-full bg-red-50 border-none rounded-2xl px-5 py-4 text-sm font-bold tabular-nums" value={formData.temperatura} onChange={(e) => updateField('temperatura', e.target.value)} />
@@ -422,7 +452,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
             </div>
           </div>
           {formData.alunoPossuiAlergia === 'sim' && (
-            <div className="space-y-2 animate-in fade-in slide-in-from-left-2">
+            <div className="space-y-2 animate-in fade-in slide-in-from-left-2 text-left">
               <label className="text-[10px] font-black text-red-600 uppercase ml-2 italic tracking-widest block">qual alergia? *</label>
               <input type="text" required className="w-full bg-red-50 border-2 border-red-200 rounded-2xl px-5 py-4 text-sm font-bold italic" value={formatarCapitalize(formData.qualAlergia)} onChange={(e) => updateField('qualAlergia', e.target.value.toLowerCase())} />
             </div>
@@ -432,13 +462,12 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
         {/* DETALHAMENTO DO ATENDIMENTO */}
         <div className="pt-10 border-t border-slate-100">
           {configUI.tipoAtendimento === 'local' ? (
-            <div className="space-y-8">
+            <div className="space-y-8 text-left">
               <div className="flex items-center gap-2 text-slate-800">
                 <Activity size={18} className="text-emerald-500" />
                 <span className="font-black uppercase italic tracking-tighter text-lg">atendimento na unidade</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-blue-600 uppercase ml-2 tracking-widest block">motivo principal *</label>
                   <input 
@@ -507,7 +536,7 @@ const AtendimentoEnfermagem = ({ user, onVoltar, onVerHistorico, onAbrirPastaDig
               </div>
             </div>
           ) : (
-            <div className="space-y-8 animate-in slide-in-from-right-4">
+            <div className="space-y-8 animate-in slide-in-from-right-4 text-left">
               <div className="flex items-center gap-2 text-orange-600">
                 <AlertTriangle size={18} />
                 <span className="font-black uppercase italic tracking-tighter text-lg">remoção / encaminhamento externo</span>

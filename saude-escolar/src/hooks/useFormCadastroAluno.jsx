@@ -10,26 +10,18 @@ import {
 
 export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues, onSucesso, usuarioLogado) => {
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm({
-    // Mantive a capitalização original na inicialização conforme sua preferência
     mode: "onChange",
     defaultValues: (alunoParaEditar || dadosEdicao || defaultValues)
   });
 
-  /**
-   * ✅ FORMATAÇÃO PARA EXIBIÇÃO:
-   * Prioriza o campo 'nomeExibicao' (capitalização original salva).
-   */
   const formatarParaExibicao = (texto, original = null) => {
     if (original) return original; 
     if (!texto || typeof texto !== 'string') return '';
     return texto.toLowerCase().replace(/(^\w|\s\w)/g, m => m.toUpperCase());
   };
 
-  /**
-   * ✅ NORMALIZAÇÃO PARA ID (TÉCNICO):
-   * Remove acentos e espaços para o ID do documento no Firebase.
-   */
   const normalizarParaId = (texto) => {
+    if (!texto) return '';
     return texto
       .toLowerCase()
       .normalize("NFD")
@@ -55,7 +47,6 @@ export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues
       const nomeId = normalizarParaId(searchData.nome);
       const maeId = normalizarParaId(searchData.mae);
       const nascId = searchData.nasc.replace(/\D/g, '');
-      
       const idBusca = `${nomeId}_${nascId}_${maeId}_${idUnidade}`;
 
       const docRef = doc(db, "pastas_digitais", idBusca);
@@ -69,6 +60,9 @@ export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues
           nome: formatarParaExibicao(d.nome, d.nomeExibicao), 
           nomeMae: formatarParaExibicao(d.nomeMae, d.nomeMaeExibicao),
           nomePai: formatarParaExibicao(d.nomePai, d.nomePaiExibicao),
+          etnia: d.etnia || '',
+          // Recuperação explícita do objeto de saúde
+          saude: d.saude || defaultValues.saude,
           endereco_rua: formatarParaExibicao(d.endereco_rua),
           endereco_bairro: formatarParaExibicao(d.endereco_bairro),
           endereco_cidade: formatarParaExibicao(d.endereco_cidade),
@@ -80,8 +74,7 @@ export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues
         setSearchData({ nome: '', mae: '', nasc: '' });
         toast.success("ALUNO LOCALIZADO!", { id: idToast });
       } else {
-        // 🚀 SE NÃO ACHAR: Preenche o formulário com os dados da busca para facilitar o cadastro
-        const dataNascDigitada = searchData.nasc; // formato yyyy-mm-dd
+        const dataNascDigitada = searchData.nasc; 
         let idadeCalculada = "";
 
         if (dataNascDigitada) {
@@ -99,11 +92,7 @@ export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues
 
         setShowSearch(false);
         setSearchData({ nome: '', mae: '', nasc: '' });
-        
-        toast.error("ALUNO NÃO ENCONTRADO. DADOS COPIADOS PARA O FORMULÁRIO.", { 
-          id: idToast,
-          duration: 4000 
-        });
+        toast.error("ALUNO NÃO ENCONTRADO. DADOS COPIADOS.", { id: idToast });
       }
     } catch (error) {
       console.error("Erro na busca:", error);
@@ -116,7 +105,7 @@ export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues
     if (!idUnidade) return toast.error("UNIDADE NÃO IDENTIFICADA!");
 
     const acaoSalvar = async () => {
-      // Salva tudo em lowercase conforme solicitado para padronização
+      // 1. Tratamento padrão (lowercase)
       const dadosTratados = prepararParaBanco(data);
       
       const nomeId = normalizarParaId(data.nome);
@@ -124,9 +113,21 @@ export const useFormCadastroAluno = (alunoParaEditar, dadosEdicao, defaultValues
       const dataId = data.dataNascimento.replace(/\D/g, '');
       const idUnico = `${nomeId}_${dataId}_${maeId}_${idUnidade}`;
       
+      // 2. Montagem do Payload garantindo campos críticos
       const payload = {
         ...dadosTratados,
-        // Mantém a capitalização original (ex: Rogeria dos Santos Silva)
+        // Garante que o objeto saude (map) seja enviado íntegro
+        saude: {
+          ...data.saude,
+          // Normaliza textos dentro do objeto saude também
+          alergiasDesc: data.saude?.alergiasDesc?.toLowerCase() || "",
+          medicamentoDesc: data.saude?.medicamentoDesc?.toLowerCase() || "",
+          restricaoAlimentar: data.saude?.restricaoAlimentar?.toLowerCase() || ""
+        },
+        // Garante altura e peso como strings formatadas
+        altura: data.altura ? String(data.altura) : "",
+        peso: data.peso ? String(data.peso) : "",
+        // Preserva capitalização original para exibição
         nomeExibicao: data.nome, 
         nomeMaeExibicao: data.nomeMae,
         nomePaiExibicao: data.nomePai,

@@ -14,7 +14,7 @@ export const useAtendimentoLogica = (user) => {
 
   const [configUI, setConfigUI] = useState({
     tipoAtendimento: 'local', 
-    perfilPaciente: 'aluno',
+    perfilPaciente: 'aluno', // 'aluno' ou 'funcionario'
     houveMedicacao: 'não',
     modoPesquisa: 'simples'
   });
@@ -29,6 +29,7 @@ export const useAtendimentoLogica = (user) => {
     horaFim: '', 
     nomePaciente: '',
     nomeMae: '', 
+    cpf: '', 
     dataNascimento: '',
     idade: '',
     sexo: '',
@@ -43,6 +44,7 @@ export const useAtendimentoLogica = (user) => {
     observacoes: '',
     pacienteId: '', 
     gestante: 'nao',
+    etnia: '',
     dum: '',
     semanasGestacao: '',
     preNatal: 'nao',
@@ -64,7 +66,7 @@ export const useAtendimentoLogica = (user) => {
 
   const [formData, setFormData] = useState(getInitialFormState());
 
-  // ✅ FUNÇÃO PARA LIMPAR TUDO E RECOMEÇAR (EXPOSTA PARA O COMPONENTE)
+  // ✅ LIMPAR TUDO
   const resetForm = useCallback(() => {
     setFormData(getInitialFormState());
     setSugestoes([]);
@@ -81,36 +83,51 @@ export const useAtendimentoLogica = (user) => {
       .replace(/\s+/g, '-');
   };
 
+  // ✅ BUSCA POR VÍNCULO (ADAPTADA PARA CADASTRO_FUNCIONARIO E PASTAS_DIGITAIS)
   const buscarPorVinculoDireto = async (dados) => {
-    const { nome, dataNasc, mae } = dados;
-    if (!nome || !dataNasc || !mae) return toast.error("PREENCHA OS 3 CAMPOS PARA BUSCAR!");
+    const { nome, dataNasc, identificador } = dados; 
+    if (!nome || !identificador) return toast.error("PREENCHA OS CAMPOS PARA BUSCAR!");
 
     setBuscando(true);
     try {
       const nomeId = normalizarParaId(nome);
-      const maeId = normalizarParaId(mae);
-      const dataId = dataNasc.replace(/\D/g, "");
       const unidadeId = user?.unidadeid?.toLowerCase() || user?.unidadeId?.toLowerCase();
       
-      const idProcurado = `${nomeId}_${dataId}_${maeId}_${unidadeId}`;
-      const docRef = doc(db, "pastas_digitais", idProcurado);
+      let idProcurado = "";
+      let colecaoBusca = "";
+
+      if (configUI.perfilPaciente === 'funcionario') {
+        colecaoBusca = "cadastro_funcionario";
+        const cpfLimpo = identificador.replace(/\D/g, "");
+        // PADRÃO FORNECIDO: unidadeid-nome-cpf
+        idProcurado = `${unidadeId}-${nomeId}-${cpfLimpo}`;
+      } else {
+        colecaoBusca = "pastas_digitais";
+        const maeId = normalizarParaId(identificador);
+        const dataId = dataNasc.replace(/\D/g, "");
+        idProcurado = `${nomeId}_${dataId}_${maeId}_${unidadeId}`;
+      }
+
+      const docRef = doc(db, colecaoBusca, idProcurado);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
-        selecionarPaciente({ id: docSnap.id, ...docSnap.data() });
-        toast.success("ALUNO LOCALIZADO NO SISTEMA!");
+        const dadosDB = docSnap.data();
+        selecionarPaciente({ id: docSnap.id, ...dadosDB });
+        toast.success(`${configUI.perfilPaciente.toUpperCase()} LOCALIZADO!`);
       } else {
         setFormData(prev => ({ 
           ...prev, 
           pacienteId: idProcurado, 
           nomePaciente: nome.toLowerCase(), 
-          nomeMae: mae.toLowerCase(), 
+          [configUI.perfilPaciente === 'aluno' ? 'nomeMae' : 'cpf']: identificador.toLowerCase(), 
           dataNascimento: dataNasc 
         }));
-        toast.error("ALUNO NÃO CADASTRADO. O VÍNCULO SERÁ CRIADO AO SALVAR.");
+        toast.error("NÃO LOCALIZADO. O VÍNCULO SERÁ CRIADO AO SALVAR.");
       }
     } catch (error) {
-      toast.error("ERRO NA BUSCA INTELIGENTE");
+      console.error(error);
+      toast.error("ERRO NA BUSCA");
     } finally { setBuscando(false); }
   };
 
@@ -121,7 +138,7 @@ export const useAtendimentoLogica = (user) => {
     }
     setBuscando(true);
     try {
-      const colecao = configUI.perfilPaciente === 'funcionario' ? "funcionarios" : "pastas_digitais";
+      const colecao = configUI.perfilPaciente === 'funcionario' ? "cadastro_funcionario" : "pastas_digitais";
       const q = query(
         collection(db, colecao),
         where("nome", ">=", busca.toLowerCase()),
@@ -156,10 +173,7 @@ export const useAtendimentoLogica = (user) => {
     setFormData(prev => {
       if (campo.includes('.')) {
         const [obj, key] = campo.split('.');
-        return {
-          ...prev,
-          [obj]: { ...prev[obj], [key]: valorFormatado }
-        };
+        return { ...prev, [obj]: { ...prev[obj], [key]: valorFormatado } };
       }
 
       let novoEstado = { ...prev, [campo]: valorFormatado };
@@ -176,15 +190,19 @@ export const useAtendimentoLogica = (user) => {
     setMostrarSugestoes(false);
     setFormData(prev => ({
       ...prev,
-      pacienteId: p.id,
+      pacienteId: p.id || p.pacienteId,
       nomePaciente: p.nome || p.nomePaciente || "",
       nomeMae: p.nomeMae || "",
+      cpf: p.cpf || "",
       dataNascimento: p.dataNascimento || "",
       sexo: p.sexo || "",
       turma: p.turma || "",
       cargo: p.cargo || "",
       peso: p.peso || "",
       altura: p.altura || "",
+      imc: p.imc || "",
+      etnia: p.etnia || "",
+      gestante: p.gestante || "nao",
       saude: {
         cids: p.saude?.cids || [],
         acessibilidades: p.saude?.acessibilidades || [],
@@ -207,15 +225,11 @@ export const useAtendimentoLogica = (user) => {
 
     try {
       const batch = writeBatch(db);
-      
-      const nomeId = normalizarParaId(formData.nomePaciente);
-      const maeId = normalizarParaId(formData.nomeMae);
-      const dataId = formData.dataNascimento.replace(/\D/g, "");
-      const idVinculoRS = `${nomeId}_${dataId}_${maeId}_${unidadeId}`;
+      const colecaoDestino = configUI.perfilPaciente === 'aluno' ? "pastas_digitais" : "cadastro_funcionario";
 
       const finalAtendimento = {
         ...formData,
-        pacienteId: idVinculoRS,
+        perfilPaciente: configUI.perfilPaciente,
         unidadeid: unidadeId,
         atendenteId: user.uid,
         atendenteNome: user.nome.toLowerCase(),
@@ -223,13 +237,14 @@ export const useAtendimentoLogica = (user) => {
         horaFim: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
 
-      // 1. Grava o Atendimento
+      // 1. Grava Atendimento
       batch.set(doc(db, "atendimento_enfermagem", formData.baenf), finalAtendimento);
 
-      // 2. Atualiza/Cria Pasta Digital
-      batch.set(doc(db, "pastas_digitais", idVinculoRS), {
+      // 2. Atualiza Pasta correspondente (Pasta Digital ou Cadastro Funcionario)
+      batch.set(doc(db, colecaoDestino, formData.pacienteId), {
         nome: formData.nomePaciente.toLowerCase(),
         nomeMae: formData.nomeMae.toLowerCase(),
+        cpf: formData.cpf || "",
         dataNascimento: formData.dataNascimento,
         sexo: formData.sexo,
         turma: formData.turma,
@@ -238,16 +253,13 @@ export const useAtendimentoLogica = (user) => {
         peso: formData.peso,
         altura: formData.altura,
         imc: formData.imc,
-        saude: formData.saude,
+        etnia: formData.etnia || "",
         updatedAt: serverTimestamp()
       }, { merge: true });
 
       await batch.commit();
-      toast.success("ATENDIMENTO FINALIZADO COM SUCESSO!", { id: toastId });
-      
-      // ✅ LIMPA O FORMULÁRIO MAS MANTÉM ABERTURA PARA PRÓXIMO ALUNO
+      toast.success("ATENDIMENTO FINALIZADO!", { id: toastId });
       resetForm();
-      
       return true;
     } catch (err) {
       console.error(err);

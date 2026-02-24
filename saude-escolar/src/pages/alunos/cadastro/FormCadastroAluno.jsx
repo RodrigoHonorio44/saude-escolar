@@ -17,14 +17,19 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
   const [searchData, setSearchData] = useState({ nome: '', mae: '', nasc: '' });
 
   const defaultValues = {
-    nome: '', sexo: '', peso: '', altura: '',
+    nome: '', sexo: '', etnia: '', peso: '', altura: '',
     nomeMae: '', nomePai: '', semPaiDeclarado: false,
     matriculaInteligente: '', cartaoSus: '',
     dataNascimento: '', idade: '', turma: '', turno: 'manhã',
     isGestante: 'não', semanasGestacao: '', fazPreNatal: 'não',
     saude: {
-      cids: [], temAlergia: "não", alergiasDesc: "", usaMedicamento: "não",
-      medicamentoDesc: "", acessibilidade: "nenhuma", restricaoAlimentar: ""
+      cids: [], 
+      temAlergia: "não", 
+      alergiasDesc: "", 
+      usaMedicamento: "não",
+      medicamentoDesc: "", 
+      acessibilidade: "nenhuma", 
+      restricaoAlimentar: ""
     },
     contato1_nome: '', contato1_parentesco: '', contato1_telefone: '', 
     endereco_cep: '', endereco_rua: '', endereco_numero: '', endereco_bairro: '', 
@@ -35,15 +40,14 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
     register, handleSubmit, reset, watch, setValue, isSubmitting, handleBuscaRapida, salvarDados 
   } = useFormCadastroAluno(alunoParaEditar, dadosEdicao, defaultValues, onSucesso, usuarioLogado);
 
-  // 🧹 FUNÇÃO DA BORRACHA: Limpa formulário e busca
   const executarLimpezaGeral = () => {
-    reset(defaultValues); // Limpa o React Hook Form
-    setSearchData({ nome: '', mae: '', nasc: '' }); // Limpa o estado da busca rápida
-    setShowSearch(false); // Fecha o painel de busca se estiver aberto
+    reset(defaultValues);
+    setSearchData({ nome: '', mae: '', nasc: '' });
+    setShowSearch(false);
     toast.success("FORMULÁRIO REINICIADO!");
   };
 
-  // Observadores de interface
+  // Observadores
   const watchDataNasc = watch("dataNascimento");
   const watchCep = watch("endereco_cep");
   const watchSaude = watch("saude");
@@ -54,11 +58,11 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
   const watchSus = watch("cartaoSus");
   const watchMatricula = watch("matriculaInteligente");
 
+  // Cálculo de IMC - Garantindo que trate ponto e vírgula
   const imcResult = (watchPeso && watchAltura && parseFloat(watchAltura) > 0) 
     ? (parseFloat(watchPeso) / (parseFloat(watchAltura) * parseFloat(watchAltura))).toFixed(2) 
     : null;
 
-  // Efeitos de Máscaras e Regras
   useEffect(() => {
     if (watchSus) {
       const v = watchSus.replace(/\D/g, '').replace(/(\d{3})(\d{4})(\d{4})(\d{4})/, '$1 $2 $3 $4').substring(0, 18);
@@ -123,7 +127,6 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
             {showSearch ? "FECHAR BUSCA" : "BUSCAR ALUNO"}
           </button>
 
-          {/* 🎯 BOTÃO DA BORRACHA ATUALIZADO */}
           <button 
             type="button" 
             onClick={executarLimpezaGeral} 
@@ -214,33 +217,46 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
             </div>
 
             <div className="md:col-span-4 space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Etnia / Raça</label>
+              <select {...register("etnia", { required: true })} className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none text-slate-700">
+                <option value="">Selecione...</option>
+                <option value="branca">BRANCA</option>
+                <option value="preta">PRETA</option>
+                <option value="parda">PARDA</option>
+                <option value="amarela">AMARELA</option>
+                <option value="indigena">INDÍGENA</option>
+                <option value="não declarado">NÃO DECLARADO</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-4 space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Turma / Grupo</label>
               <input {...register("turma")} placeholder="Ex: 1º Ano A" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
             </div>
 
-            <div className="md:col-span-6 space-y-1">
+            <div className="md:col-span-4 space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1 flex items-center gap-1"><Hash size={12}/> Matrícula E-Escola</label>
               <input {...register("matriculaInteligente")} placeholder="0000000-0" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
             </div>
 
-            <div className="md:col-span-6 space-y-1">
+            <div className="md:col-span-4 space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1 flex items-center gap-1"><CreditCard size={12}/> Cartão SUS</label>
               <input {...register("cartaoSus")} placeholder="000 0000 0000 0000" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
             </div>
 
             <div className="md:col-span-3 space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1 flex items-center gap-1"><Scale size={12}/> Peso (kg)</label>
-              <input type="number" step="0.1" {...register("peso")} placeholder="Ex: 65.5" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
+              <input type="number" step="0.1" {...register("peso")} placeholder="Ex: 30" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
             </div>
 
             <div className="md:col-span-3 space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1 flex items-center gap-1"><Ruler size={12}/> Altura (m)</label>
-              <input type="number" step="0.01" {...register("altura")} placeholder="Ex: 1.70" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
+              <input type="number" step="0.01" {...register("altura")} placeholder="Ex: 1.45" className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold outline-none" />
             </div>
 
             <div className="md:col-span-3 space-y-1">
-               <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Resultado IMC</label>
-               <input readOnly value={imcResult || ""} placeholder="Aguardando dados..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-700 text-center outline-none" />
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Resultado IMC</label>
+                <input readOnly value={imcResult || ""} placeholder="Aguardando dados..." className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-700 text-center outline-none" />
             </div>
 
             <div className="md:col-span-3 space-y-1">
@@ -255,7 +271,7 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
           </div>
         </section>
 
-        {/* MONITORAMENTO GESTACIONAL (CONDICIONAL) */}
+        {/* MONITORAMENTO GESTACIONAL */}
         {watchSexo === "feminino" && (
           <section className="p-8 bg-rose-50/50 border-2 border-rose-100 border-dashed rounded-[40px] space-y-6 animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center gap-3">
@@ -312,7 +328,7 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
           </div>
         </section>
 
-        {/* CONDIÇÕES CLÍNICAS */}
+        {/* CONDIÇÕES CLÍNICAS - CORRIGIDO O SETVALUE */}
         <div className="space-y-6">
           <div className="flex items-center gap-3 pb-2 border-b-2 border-slate-100">
             <Activity size={20} className="text-rose-500" />
@@ -323,7 +339,8 @@ const FormCadastroAluno = ({ onVoltar, dadosEdicao, alunoParaEditar, onSucesso, 
               formData={{ saude: watchSaude }} 
               setFormData={(newData) => {
                 const updatedSaude = typeof newData === 'function' ? newData({ saude: watchSaude }).saude : newData.saude;
-                setValue("saude", updatedSaude);
+                // O segredo está aqui: shouldDirty garante que o Hook Form detecte a mudança no objeto
+                setValue("saude", updatedSaude, { shouldDirty: true, shouldValidate: true });
               }} 
             />
           </div>
