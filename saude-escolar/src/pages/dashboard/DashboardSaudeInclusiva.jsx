@@ -1,98 +1,22 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { db, auth } from '../../config/firebase'; 
-import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
+import React, { useState } from 'react';
 import { 
   Brain, Printer, Phone, ChevronDown, 
-  Loader2, HeartPulse, AlertTriangle, 
-  GraduationCap, Search 
+  Loader2, AlertTriangle, GraduationCap, Search 
 } from 'lucide-react';
+import useDashboardSaudeInclusiva from '../../hooks/useDashboardSaudeInclusiva'; // Certifique-se de que o hook está na mesma pasta
 
 const DashboardSaudeInclusiva = ({ user, setDadosParaEdicao, setActiveTab }) => {
-  const [alunosEspeciais, setAlunosEspeciais] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState("");
-  const [abaAtiva, setAbaAtiva] = useState("todos");
   const [cardAberto, setCardAberto] = useState(null);
 
-  useEffect(() => {
-    const buscarAlunosEspeciais = async () => {
-      if (!auth.currentUser || !user) return;
-      
-      setLoading(true);
-      try {
-        const cargoLower = user?.role?.toLowerCase() || "";
-        const isRoot = cargoLower === 'root' || user?.email === "rodrigohono21@gmail.com";
-        const modoInspecao = localStorage.getItem('modo_inspecao') === 'true';
-
-        let q;
-        
-        if (isRoot && !modoInspecao) {
-          q = query(collection(db, "pastas_digitais"), orderBy("nome", "asc"));
-        } else {
-          const idParaFiltro = user.escolaId?.toLowerCase().trim();
-          if (!idParaFiltro) {
-             setAlunosEspeciais([]);
-             return;
-          }
-          q = query(
-            collection(db, "pastas_digitais"), 
-            where("escolaId", "==", idParaFiltro),
-            orderBy("nome", "asc")
-          );
-        }
-
-        const snap = await getDocs(q);
-        
-        const lista = snap.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(a => {
-            const marcadorPCD = a.isPCD?.toString().toLowerCase().trim() === "sim";
-            const temCategoria = (a.categoriasPCD && a.categoriasPCD.length > 0) || (a.tipoNecessidade);
-            return marcadorPCD && temCategoria;
-          });
-
-        setAlunosEspeciais(lista);
-      } catch (error) {
-        console.error("Erro ao carregar PCDs:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    buscarAlunosEspeciais();
-  }, [user]); 
-
-  const dadosFiltrados = useMemo(() => {
-    let base = [...alunosEspeciais];
-
-    if (abaAtiva === "tea") {
-      base = base.filter(a => 
-        a.categoriasPCD?.includes("tea") || 
-        a.tipoNecessidade?.toLowerCase().includes("tea") || 
-        a.tipoNecessidade?.toLowerCase().includes("autismo")
-      );
-    } else if (abaAtiva === "tdah") {
-      base = base.filter(a => 
-        a.categoriasPCD?.includes("tdah") || 
-        a.tipoNecessidade?.toLowerCase().includes("tdah")
-      );
-    } else if (abaAtiva === "outros") {
-      base = base.filter(a => {
-        const cats = a.categoriasPCD || [];
-        const n = a.tipoNecessidade?.toLowerCase() || "";
-        const ehTea = cats.includes("tea") || n.includes("tea") || n.includes("autismo");
-        const ehTdah = cats.includes("tdah") || n.includes("tdah");
-        return !ehTea && !ehTdah; 
-      });
-    }
-
-    if (filtro) {
-      const termo = filtro.toLowerCase().trim();
-      base = base.filter(a => a.nome?.toLowerCase().includes(termo));
-    }
-
-    return base;
-  }, [alunosEspeciais, abaAtiva, filtro]);
+  // ✅ UTILIZANDO O HOOK CUSTOMIZADO
+  const { 
+    dadosFiltrados, 
+    loading, 
+    filtro, 
+    setFiltro, 
+    abaAtiva, 
+    setAbaAtiva 
+  } = useDashboardSaudeInclusiva(user);
 
   const formatarDiagnostico = (aluno) => {
     if (aluno.categoriasPCD && aluno.categoriasPCD.length > 0) {
@@ -119,14 +43,15 @@ const DashboardSaudeInclusiva = ({ user, setDadosParaEdicao, setActiveTab }) => 
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* HEADER DO DASHBOARD */}
+      
+      {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter flex items-center gap-2">
             <Brain size={28} className="text-purple-600" /> Saúde Inclusiva
           </h2>
           <p className="text-[10px] font-bold text-slate-400 uppercase italic tracking-widest">
-            Unidade: {user?.escola || "Geral (Root)"}
+            Unidade: {user?.unidade || "Geral (Root)"}
           </p>
         </div>
         
@@ -147,30 +72,44 @@ const DashboardSaudeInclusiva = ({ user, setDadosParaEdicao, setActiveTab }) => 
         </div>
       </div>
 
-      {/* ABAS DE FILTRO */}
+      {/* --- ABAS DE FILTRO --- */}
       <div className="no-print flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {["todos", "tea", "tdah", "outros"].map(tab => (
             <button 
               key={tab}
               onClick={() => setAbaAtiva(tab)}
-              className={`px-6 py-2 rounded-xl font-black text-[9px] uppercase italic transition-all whitespace-nowrap ${abaAtiva === tab ? 'bg-purple-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'}`}
+              className={`px-6 py-2 rounded-xl font-black text-[9px] uppercase italic transition-all whitespace-nowrap ${
+                abaAtiva === tab 
+                  ? 'bg-purple-600 text-white shadow-md' 
+                  : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'
+              }`}
             >
               {tab}
             </button>
           ))}
       </div>
 
-      {/* LISTAGEM DE ALUNOS */}
+      {/* --- LISTAGEM --- */}
       <div className="grid grid-cols-1 gap-3">
         {dadosFiltrados.length > 0 ? (
           dadosFiltrados.map(aluno => (
-            <div key={aluno.id} className={`bg-white rounded-[30px] border transition-all ${aluno.temAlergia === 'sim' ? 'border-red-200 shadow-sm shadow-red-50' : 'border-slate-100 shadow-sm'}`}>
+            <div 
+              key={aluno.id} 
+              className={`bg-white rounded-[30px] border transition-all ${
+                aluno.temAlergia === 'sim' ? 'border-red-200 shadow-sm shadow-red-50' : 'border-slate-100 shadow-sm'
+              }`}
+            >
+              {/* CARD RESUMIDO */}
               <div 
                 onClick={() => setCardAberto(cardAberto === aluno.id ? null : aluno.id)} 
                 className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50 rounded-[30px] transition-all"
               >
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm border uppercase ${aluno.temAlergia === 'sim' ? 'bg-red-100 text-red-600 border-red-200' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm border uppercase ${
+                    aluno.temAlergia === 'sim' 
+                      ? 'bg-red-100 text-red-600 border-red-200' 
+                      : 'bg-purple-50 text-purple-600 border-purple-100'
+                  }`}>
                     {aluno.nome?.substring(0, 2)}
                   </div>
                   <div>
@@ -178,28 +117,39 @@ const DashboardSaudeInclusiva = ({ user, setDadosParaEdicao, setActiveTab }) => 
                       {aluno.nome}
                       {aluno.temAlergia === 'sim' && <AlertTriangle size={14} className="text-red-500 animate-pulse" />}
                     </h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">TURMA: {aluno.turma || '---'}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      TURMA: {aluno.turma || '---'}
+                    </p>
                   </div>
                 </div>
+                
                 <div className="flex items-center gap-3">
-                    {aluno.temAlergia === 'sim' && <span className="px-3 py-1 bg-red-500 text-white rounded-full text-[8px] font-black uppercase italic">Alérgico</span>}
+                    {aluno.temAlergia === 'sim' && (
+                      <span className="px-3 py-1 bg-red-500 text-white rounded-full text-[8px] font-black uppercase italic">Alérgico</span>
+                    )}
                     <span className="px-3 py-1 bg-purple-100 text-purple-600 rounded-full text-[8px] font-black uppercase italic">PCD</span>
                     <ChevronDown size={20} className={`text-slate-300 transition-transform ${cardAberto === aluno.id ? "rotate-180" : ""}`} />
                 </div>
               </div>
 
+              {/* CARD EXPANDIDO (DETALHES) */}
               {cardAberto === aluno.id && (
                 <div className="px-6 pb-6 pt-2 border-t border-slate-50 animate-in slide-in-from-top-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <div className="space-y-3">
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-tighter">Diagnóstico / Detalhes</p>
-                        <p className="text-[11px] font-black text-slate-800 uppercase italic leading-relaxed">{formatarDiagnostico(aluno)}</p>
+                        <p className="text-[11px] font-black text-slate-800 uppercase italic leading-relaxed">
+                          {formatarDiagnostico(aluno)}
+                        </p>
                       </div>
+                      
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
                         <div>
                           <p className="text-[8px] font-black text-slate-400 uppercase mb-1 tracking-tighter">Responsável Primário</p>
-                          <p className="text-[11px] font-black text-slate-800 uppercase">{aluno.contato1_nome || 'não informado'}</p>
+                          <p className="text-[11px] font-black text-slate-800 uppercase">
+                            {aluno.contato1_nome || 'não informado'}
+                          </p>
                         </div>
                         {aluno.contato1_telefone && (
                           <a href={`tel:${aluno.contato1_telefone}`} className="p-2 bg-green-100 text-green-600 rounded-xl hover:bg-green-200 transition-colors">
@@ -208,12 +158,16 @@ const DashboardSaudeInclusiva = ({ user, setDadosParaEdicao, setActiveTab }) => 
                         )}
                       </div>
                     </div>
+
                     <div className="flex flex-col justify-end">
                       <button 
-                        onClick={() => { setDadosParaEdicao(aluno); setActiveTab("pasta_digital"); }} 
+                        onClick={() => { 
+                          if (setDadosParaEdicao) setDadosParaEdicao(aluno); 
+                          if (setActiveTab) setActiveTab("pasta_digital"); 
+                        }} 
                         className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] italic hover:bg-purple-600 transition-all shadow-lg flex items-center justify-center gap-2"
                       >
-                        <GraduationCap size={16} /> Acessar Pasta Digital
+                        <GraduationCap size={16} /> Acessar Prontuário Digital
                       </button>
                     </div>
                   </div>
@@ -224,7 +178,7 @@ const DashboardSaudeInclusiva = ({ user, setDadosParaEdicao, setActiveTab }) => 
         ) : (
           <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-100">
             <Brain size={40} className="mx-auto text-slate-200 mb-4" />
-            <p className="text-slate-300 font-black uppercase italic text-xs">Nenhum PCD localizado nesta unidade.</p>
+            <p className="text-slate-300 font-black uppercase italic text-xs">Nenhum PCD localizado.</p>
           </div>
         )}
       </div>

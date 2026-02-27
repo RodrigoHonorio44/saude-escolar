@@ -6,7 +6,8 @@ import {
   where, serverTimestamp, addDoc, Timestamp, orderBy 
 } from 'firebase/firestore'; 
 import { 
-  Search, LogOut, ShieldCheck, UserMinus, UserCheck, Loader2, KeyRound, School
+  Search, LogOut, ShieldCheck, UserMinus, UserCheck, Loader2, KeyRound, School,
+  LayoutDashboard, Stethoscope, Accessibility, HeartPulse, FolderSearch, UserRound, BarChart3, ClipboardList, Lock
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -53,27 +54,27 @@ const GestaoUsuarios = () => {
     } catch (e) { console.error(e); }
   };
 
+  const toggleModulo = async (userId, modulo, valorAtual) => {
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        [`modulosSidebar.${modulo}`]: !valorAtual
+      });
+      toast.success(`Módulo Atualizado!`);
+    } catch (e) { toast.error("Erro ao alterar módulo"); }
+  };
+
   const alternarStatusUsuario = async (id, nome, statusAtual) => {
     const isBloqueado = statusAtual === 'bloqueado' || statusAtual === 'bloqueada';
-    
     try {
       await updateDoc(doc(db, "users", id), { 
         status: isBloqueado ? 'ativo' : 'bloqueado',
         licencaStatus: isBloqueado ? 'ativa' : 'bloqueada',
         currentSessionId: "" 
       });
-      
       const acaoTxt = isBloqueado ? "DESBLOQUEIO" : "BLOQUEIO";
       registrarLog(nome, acaoTxt);
-      
-      if(isBloqueado) {
-        toast.success(`ACESSO DE ${nome.toUpperCase()} REATIVADO!`);
-      } else {
-        toast.error(`ACESSO DE ${nome.toUpperCase()} SUSPENSO!`);
-      }
-    } catch (e) { 
-      toast.error("ERRO NA OPERAÇÃO"); 
-    }
+      isBloqueado ? toast.success(`ACESSO DE ${nome.toUpperCase()} REATIVADO!`) : toast.error(`ACESSO DE ${nome.toUpperCase()} SUSPENSO!`);
+    } catch (e) { toast.error("ERRO NA OPERAÇÃO"); }
   };
 
   const resetarSenha = async (email, nome) => {
@@ -165,8 +166,9 @@ const GestaoUsuarios = () => {
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-100">
                   <th className={`${UI.padding} ${UI.label}`}>Profissional / Escola</th>
+                  <th className={`${UI.padding} ${UI.label} text-center`}>Módulos</th>
                   <th className={`${UI.padding} ${UI.label} text-center`}>Renovação Rápida</th>
-                  <th className={`${UI.padding} ${UI.label} text-right`}>Ações e Segurança</th>
+                  <th className={`${UI.padding} ${UI.label} text-right`}>Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -191,10 +193,27 @@ const GestaoUsuarios = () => {
                       </td>
 
                       <td className={UI.padding}>
-                        <div className="flex justify-center gap-2">
-                          {[30, 90, 365].map(d => (
-                            <button key={d} onClick={() => renovarLicenca(u.id, u.nome, d)} className="px-3 py-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-[9px] font-black transition-all">
-                              {d === 365 ? '1 ANO' : `${d}D`}
+                        <div className="flex justify-center gap-1">
+                          <ModuloBtn icon={<LayoutDashboard size={14}/>} ativo={u.modulosSidebar?.dashboard} onClick={() => toggleModulo(u.id, 'dashboard', u.modulosSidebar?.dashboard)} />
+                          <ModuloBtn icon={<Stethoscope size={14}/>} ativo={u.modulosSidebar?.atendimento} onClick={() => toggleModulo(u.id, 'atendimento', u.modulosSidebar?.atendimento)} />
+                          <ModuloBtn icon={<Accessibility size={14}/>} ativo={u.modulosSidebar?.saude_inclusiva} onClick={() => toggleModulo(u.id, 'saude_inclusiva', u.modulosSidebar?.saude_inclusiva)} />
+                          <ModuloBtn icon={<HeartPulse size={14}/>} ativo={u.modulosSidebar?.saude_escolar} onClick={() => toggleModulo(u.id, 'saude_escolar', u.modulosSidebar?.saude_escolar)} />
+                          <ModuloBtn icon={<FolderSearch size={14}/>} ativo={u.modulosSidebar?.pasta_digital} onClick={() => toggleModulo(u.id, 'pasta_digital', u.modulosSidebar?.pasta_digital)} />
+                          <ModuloBtn icon={<UserRound size={14}/>} ativo={u.modulosSidebar?.pacientes} onClick={() => toggleModulo(u.id, 'pacientes', u.modulosSidebar?.pacientes)} />
+                          <ModuloBtn icon={<BarChart3 size={14}/>} ativo={u.modulosSidebar?.auditoria_pro} onClick={() => toggleModulo(u.id, 'auditoria_pro', u.modulosSidebar?.auditoria_pro)} />
+                          <ModuloBtn icon={<ClipboardList size={14}/>} ativo={u.modulosSidebar?.relatorios} onClick={() => toggleModulo(u.id, 'relatorios', u.modulosSidebar?.relatorios)} />
+                        </div>
+                      </td>
+
+                      <td className={UI.padding}>
+                        <div className="flex justify-center gap-1">
+                          {[30, 60, 90, 365].map(d => (
+                            <button 
+                              key={d} 
+                              onClick={() => renovarLicenca(u.id, u.nome, d)} 
+                              className="px-2 py-1.5 bg-slate-100 hover:bg-slate-900 hover:text-white rounded-lg text-[9px] font-black transition-all"
+                            >
+                              {d === 365 ? '1ANO' : `+${d}D`}
                             </button>
                           ))}
                         </div>
@@ -202,30 +221,13 @@ const GestaoUsuarios = () => {
 
                       <td className={UI.padding}>
                         <div className="flex items-center justify-end gap-2">
-                          <button 
-                            title="Resetar Senha"
-                            onClick={() => resetarSenha(u.email, u.nome)}
-                            className={`${UI.buttonAction} bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-100`}
-                          >
+                          <button onClick={() => resetarSenha(u.email, u.nome)} className={`${UI.buttonAction} bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white`}>
                             <KeyRound size={16} />
                           </button>
-
-                          <button 
-                            title="Derrubar Sessão"
-                            onClick={() => derrubarSessao(u.id, u.nome)}
-                            className={`${UI.buttonAction} ${u.currentSessionId ? 'bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white' : 'bg-slate-50 text-slate-300'}`}
-                          >
+                          <button onClick={() => derrubarSessao(u.id, u.nome)} className={`${UI.buttonAction} ${u.currentSessionId ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-slate-50 text-slate-300'}`}>
                             <LogOut size={16} />
                           </button>
-
-                          {/* BOTÃO DINÂMICO BLOQUEAR/DESBLOQUEAR */}
-                          <button 
-                            title={isBloqueado ? "Desbloquear Usuário" : "Bloquear Usuário"}
-                            onClick={() => alternarStatusUsuario(u.id, u.nome, u.status || u.licencaStatus)}
-                            className={`${UI.buttonAction} ${isBloqueado 
-                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white border border-emerald-100' 
-                              : 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100'}`}
-                          >
+                          <button onClick={() => alternarStatusUsuario(u.id, u.nome, u.status || u.licencaStatus)} className={`${UI.buttonAction} ${isBloqueado ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                             {isBloqueado ? <UserCheck size={16} /> : <UserMinus size={16} />}
                           </button>
                         </div>
@@ -241,5 +243,14 @@ const GestaoUsuarios = () => {
     </div>
   );
 };
+
+const ModuloBtn = ({ icon, ativo, onClick }) => (
+  <button 
+    onClick={onClick}
+    className={`p-2 rounded-lg border transition-all ${ativo ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-slate-50 border-slate-100 text-slate-300 opacity-60 hover:opacity-100'}`}
+  >
+    {ativo ? icon : <Lock size={12} />}
+  </button>
+);
 
 export default GestaoUsuarios;

@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { db, auth } from "../../config/firebase"; 
-import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
+import { onSnapshot, collection, query, where } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 import { 
   LayoutDashboard, UserPlus, ClipboardList, Stethoscope,
   ChevronDown, LogOut, FolderSearch, Brain, 
   Menu, Sun, Moon, BarChart3, 
-  Contact, Zap, Construction, Mail
+  Contact, Zap, Construction, Mail, HeartPulse, AlertTriangle
 } from "lucide-react";
 
-// ✅ IMPORTAÇÕES
+// ✅ IMPORTAÇÕES EXISTENTES
 import PainelGeralEnfermeiro from "./PainelGeralEnfermeiro"; 
 import FormCadastroAluno from "../alunos/cadastro/FormCadastroAluno"; 
-import FormCadastroFuncionario from "../funcionario/cadastro/FormCadastroFuncionario"; // Certifique-se de importar
+import FormCadastroFuncionario from "../funcionario/cadastro/FormCadastroFuncionario";
 import AtendimentoEnfermagem from "../atendimento/cadastro/AtendimentoEnfermagem";
+import QuestionarioSaude from "../dashboard/cadastro/QuestionarioSaude"; 
+
+// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA E AUDITORIA
+import DashboardSaudeInclusiva from "./DashboardSaudeInclusiva"; 
+import DashboardAuditoria from "./DashboardAuditoria"; 
 
 const MENU_ESTRUTURA = [
   { id: "home", label: "Painel Geral", icon: <LayoutDashboard size={20} />, key: "dashboard" },
@@ -23,7 +28,11 @@ const MENU_ESTRUTURA = [
   { id: "pasta_digital", label: "Prontuário Digital", icon: <FolderSearch size={20} />, key: "pasta_digital" },
   { 
     id: "pacientes", label: "Novos Registros", icon: <UserPlus size={20} />, key: "pacientes",
-    subItems: [{ id: "aluno", label: "Alunos" }, { id: "funcionario", label: "Funcionários" }, { id: "saude_escolar", label: "Ficha Médica" }]
+    subItems: [
+      { id: "aluno", label: "Alunos" }, 
+      { id: "funcionario", label: "Funcionários" }, 
+      { id: "saude_escolar", label: "Ficha Médica" }
+    ]
   }, 
   { id: "historico", label: "Arquivo BAENF", icon: <ClipboardList size={20} />, key: "relatorios" },
   { id: "auditoria", label: "Relatórios Pro", icon: <BarChart3 size={20} />, key: "auditoria_pro" },
@@ -47,6 +56,16 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
     tempoMedio: 0,
     tempoMedioMes: 0
   });
+
+  // 🛠 RESET DE EMERGÊNCIA
+  const limparCacheAuditoria = () => {
+    Object.keys(localStorage).forEach(key => {
+      if (key.includes('cache_auditoria') || key.includes('last_fetch')) {
+        localStorage.removeItem(key);
+      }
+    });
+    window.location.reload();
+  };
 
   const calcularMinutosConsulta = (inicio, fim) => {
     if (!inicio || !fim) return 0;
@@ -86,44 +105,44 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
     return user?.modulosSidebar?.[itemKey] === true;
   }, [isRoot, cargoLower, user]);
 
-  // ✅ MONITORAMENTO DE MÉTRICAS EM TEMPO REAL (CORRIGIDO R S)
+  // 🛡️ MONITOR DE MÉTRICAS COM BLINDAGEM R S
   useEffect(() => {
     const unidId = userContext?.unidadeid;
-    if (!unidId) return;
+    if (!unidId || unidId === "") return;
 
-    // 1. Monitorar Alunos
+    // Handler de erro para silenciar "permission-denied" no console
+    const handleSyncError = (error) => {
+      if (error.code === 'permission-denied') {
+        console.log("ℹ️ Sincronização R S: Aguardando estabilização de permissões...");
+      } else {
+        console.error("Erro de sincronização:", error);
+      }
+    };
+
     const qAlunos = query(collection(db, "cadastro_aluno"), where("unidadeid", "==", unidId));
     const unsubAlunos = onSnapshot(qAlunos, (snap) => {
       setMetricas(prev => ({ ...prev, totalAlunos: snap.size }));
-    });
+    }, handleSyncError);
 
-    // 2. Monitorar Funcionários (Coleção Corrigida)
     const qFunc = query(collection(db, "cadastro_funcionario"), where("unidadeid", "==", unidId));
     const unsubFunc = onSnapshot(qFunc, (snap) => {
       setMetricas(prev => ({ ...prev, totalFuncionarios: snap.size }));
-    });
+    }, handleSyncError);
 
-    // 3. Monitorar Atendimentos
     const qAtend = query(collection(db, "atendimento_enfermagem"), where("unidadeid", "==", unidId));
     const unsubAtend = onSnapshot(qAtend, (snap) => {
       const agora = new Date();
-      const hojeStr = agora.toISOString().split('T')[0]; // yyyy-mm-dd
-
-      let dia = 0; let mes = 0; let minDia = 0; let minMes = 0; let pend = 0;
+      const hojeStr = agora.toISOString().split('T')[0];
+      let dia = 0, mes = 0, minDia = 0, minMes = 0, pend = 0;
 
       snap.forEach((doc) => {
         const d = doc.data();
         const duracao = calcularMinutosConsulta(d.horario, d.horaFim);
-
         if (d.statusAtendimento !== 'finalizado') pend++;
-
-        // Filtro do Dia (Campo 'data' vindo do seu Hook)
         if (d.data === hojeStr) {
           dia++;
           minDia += duracao;
         }
-        
-        // Filtro do Mês
         if (d.data) {
           const [anoAtend, mesAtend] = d.data.split('-').map(Number);
           if ((mesAtend - 1) === agora.getMonth() && anoAtend === agora.getFullYear()) {
@@ -141,9 +160,13 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
         tempoMedio: dia > 0 ? Math.round(minDia / dia) : 0,
         tempoMedioMes: mes > 0 ? Math.round(minMes / mes) : 0
       }));
-    });
+    }, handleSyncError);
 
-    return () => { unsubAlunos(); unsubFunc(); unsubAtend(); };
+    return () => { 
+      unsubAlunos(); 
+      unsubFunc(); 
+      unsubAtend(); 
+    };
   }, [userContext?.unidadeid]);
 
   const handleLogoutClick = async () => {
@@ -156,11 +179,23 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
   };
 
   const renderContent = () => {
-    const contextData = {
-      ...userContext,
-      unidadeid: userContext.unidadeid,
-      unidade: userContext.unidade,
-    };
+    const contextData = { ...userContext };
+
+    if (activeTab === "auditoria" && !contextData.unidadeid) {
+        return (
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 p-10">
+            <AlertTriangle size={48} className="mb-4 text-amber-500" />
+            <h2 className="text-xl font-black uppercase italic tracking-tighter">Erro de Sincronização</h2>
+            <p className="text-xs uppercase font-bold mt-2">ID da unidade não detectado. Tente resetar o cache.</p>
+            <button 
+              onClick={limparCacheAuditoria}
+              className="mt-6 px-8 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg hover:bg-blue-700 transition-all"
+            >
+              Resetar e Recarregar
+            </button>
+          </div>
+        );
+    }
 
     if (activeTab === "home") {
       return (
@@ -184,7 +219,35 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
       );
     }
 
+    if (activeTab === "alunos_especiais") {
+      return (
+        <DashboardSaudeInclusiva 
+          user={contextData}
+          onVoltar={() => setActiveTab("home")}
+        />
+      );
+    }
+
+    if (activeTab === "auditoria") {
+      return (
+        <DashboardAuditoria 
+          user={contextData}
+        />
+      );
+    }
+
     if (activeTab === "pacientes") {
+      if (cadastroMode === "saude_escolar") {
+        return (
+          <QuestionarioSaude 
+            onSucesso={() => {
+              setActiveTab("home");
+              setCadastroMode("aluno");
+            }} 
+            onVoltar={() => setActiveTab("home")}
+          />
+        );
+      }
       if (cadastroMode === "aluno") {
         return (
           <FormCadastroAluno 
@@ -210,7 +273,6 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
 
   return (
     <div className={`fixed inset-0 z-[999] flex h-screen w-screen overflow-hidden font-sans ${darkMode ? "bg-black text-white" : "bg-slate-50 text-slate-900"}`}>
-      
       <aside className={`${isExpanded ? "w-72" : "w-24"} ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"} flex flex-col border-r transition-all duration-300 shadow-2xl relative z-50`}>
         <div className="p-8 flex-1 overflow-y-auto scrollbar-hide">
           <div className="mb-12 flex items-center gap-4">
@@ -248,11 +310,15 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
                       {item.subItems.map(sub => (
                         <button 
                           key={sub.id} 
-                          onClick={() => { setActiveTab("pacientes"); setCadastroMode(sub.id); }}
-                          className={`w-full text-left py-2 px-3 rounded-xl text-[10px] font-black uppercase italic transition-colors ${
+                          onClick={() => { 
+                            setActiveTab("pacientes"); 
+                            setCadastroMode(sub.id); 
+                          }}
+                          className={`w-full text-left py-2 px-3 rounded-xl text-[10px] font-black uppercase italic transition-colors flex items-center gap-2 ${
                             cadastroMode === sub.id && activeTab === "pacientes" ? "text-blue-600 bg-blue-50" : "text-slate-400 hover:text-slate-600"
                           }`}
                         >
+                          {sub.id === "saude_escolar" && <HeartPulse size={12} />}
                           {sub.label}
                         </button>
                       ))}
@@ -283,7 +349,7 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
             <button onClick={() => setIsExpanded(!isExpanded)} className="p-3 hover:bg-slate-100 rounded-xl transition-all text-slate-400"><Menu size={24}/></button>
             <div className="flex flex-col text-left">
               <h1 className="text-sm font-black uppercase italic tracking-[0.2em] text-slate-400 leading-none">
-                {MENU_ESTRUTURA.find(i => i.id === activeTab)?.label || "Dashboard"}
+                {activeTab === "alunos_especiais" ? "Saúde Inclusiva" : activeTab === "auditoria" ? "Relatórios Pro" : (MENU_ESTRUTURA.find(i => i.id === activeTab)?.label || "Dashboard")}
               </h1>
               <p className={`text-lg font-black uppercase tracking-tighter mt-1 ${darkMode ? "text-white" : "text-slate-800"}`}>
                 {userContext?.unidade || "unidade"}

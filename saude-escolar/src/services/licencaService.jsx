@@ -34,6 +34,7 @@ export const cadastrarUsuarioService = async (dados) => {
       role: dados.role.toLowerCase(),
       registroProfissional: dados.registroProfissional?.toUpperCase() || '',
       
+      // Padronização escola/unidade para lowercase
       escola: dados.unidade.toLowerCase().trim(), 
       escolaId: dados.unidadeId.toLowerCase().trim(),
       unidade: dados.unidade.toLowerCase().trim(),
@@ -93,6 +94,7 @@ export const renovarLicencaService = async (userId, dias) => {
       dataExpiracao: Timestamp.fromDate(novaData),
       status: 'ativo',
       licencaStatus: 'ativa',
+      statusLicenca: 'ativa', // Garante consistência com as Rules
       primeiroAcesso: false, 
       ultimaRenovacao: serverTimestamp()
     });
@@ -104,36 +106,48 @@ export const renovarLicencaService = async (userId, dias) => {
 };
 
 /**
- * 🛡️ MONITORAMENTO EM TEMPO REAL
+ * 🛡️ MONITORAMENTO EM TEMPO REAL - PADRÃO R S
  */
 export const monitorarLicenca = (userId, onBlock) => {
   if (!userId) return;
 
   const userDoc = doc(db, "users", userId);
 
+  // O terceiro parâmetro (error) é CRUCIAL para evitar os erros de snapshot no log
   return onSnapshot(userDoc, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
       
       const emailRoot = "rodrigohono21@gmail.com";
-      if (data.email?.toLowerCase() === emailRoot || data.role?.toLowerCase() === 'root') {
+      const userEmail = data.email?.toLowerCase() || '';
+      const userRole = data.role?.toLowerCase() || '';
+
+      if (userEmail === emailRoot || userRole === 'root') {
         return; 
       }
 
       const hoje = new Date();
-      const dataExp = data.dataExpiracao?.seconds 
-        ? new Date(data.dataExpiracao.seconds * 1000) 
-        : new Date(data.dataExpiracao);
+      // Conversão segura de Timestamp do Firebase
+      const dataExp = data.dataExpiracao?.toDate ? data.dataExpiracao.toDate() : new Date(data.dataExpiracao);
 
       const statusBloqueado = 
         data.licencaStatus?.toLowerCase().trim() === 'bloqueada' || 
-        data.status?.toLowerCase().trim() === 'bloqueado';
+        data.status?.toLowerCase().trim() === 'bloqueado' ||
+        data.statusLicenca?.toLowerCase().trim() === 'bloqueada';
 
       const expirou = data.dataExpiracao && hoje > dataExp;
 
       if (statusBloqueado || expirou) {
+        console.warn("🔐 ACESSO R S: Restrição de licença detectada.");
         onBlock(); 
       }
+    }
+  }, (error) => {
+    // Captura silenciosa de erros de permissão (comum no logout)
+    if (error.code === 'permission-denied') {
+      console.log("ℹ️ Monitor R S: Sessão finalizada.");
+    } else {
+      console.error("Erro no monitor de licença:", error);
     }
   });
 };
