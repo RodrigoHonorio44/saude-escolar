@@ -12,7 +12,8 @@ export const useQuestionarioSaude = (onSucesso) => {
   const [fetching, setFetching] = useState(false);
   const { user } = useAuth();
   
-  const escolaUsuarioId = user?.unidadeId || user?.escolaId;
+  // Captura o ID da unidade garantindo compatibilidade com diferentes nomes de campo
+  const escolaUsuarioId = user?.unidadeid || user?.unidadeId || user?.escolaId;
 
   const normalizeParaBanco = (val) => {
     if (typeof val !== 'string') return val;
@@ -29,11 +30,11 @@ export const useQuestionarioSaude = (onSucesso) => {
     peso: '',
     altura: '',
     cartaoSus: '',
+    cpf: '',
     etnia: '',
     tipoSanguineo: '',
     pacienteId: '',
     cid: '',
-    // Novos campos de endereço vindos do cadastro
     bairro: '',
     rua: '',
     alergias: { possui: 'não', detalhes: '' },
@@ -69,11 +70,10 @@ export const useQuestionarioSaude = (onSucesso) => {
   const selecionarPaciente = async (paciente) => {
     let dQuest = {};
     try {
-      // Tenta buscar o histórico, mas não deixa o erro de permissão travar o processo
       const questSnap = await getDoc(doc(db, "questionarios_saude", paciente.id));
       if (questSnap.exists()) dQuest = questSnap.data();
     } catch (error) {
-      console.warn("Nota: Prontuário de saúde não localizado ou acesso restrito. Usando dados do cadastro.");
+      console.warn("Buscando apenas dados do cadastro base.");
     }
 
     const saudeMap = paciente.saude || {};
@@ -82,13 +82,15 @@ export const useQuestionarioSaude = (onSucesso) => {
       ...estadoInicial,
       ...dQuest, 
       
-      // PRIORIDADE: Dados atualizados do cadastro_aluno
+      // Dados de Identificação (Prioridade para o cadastro base)
       pacienteId: paciente.id,
       alunoNome: paciente.nomeExibicao || paciente.nome || '', 
       dataNascimento: paciente.dataNascimento || '',
-      idade: paciente.idade || '',
+      idade: paciente.idade?.toString() || '',
       sexo: paciente.sexo || '',
       turma: paciente.turma || '',
+      cargo: paciente.cargo || '', 
+      cpf: paciente.cpf || '',     
       etnia: paciente.etnia || '', 
       peso: paciente.peso || '',   
       altura: paciente.altura || '', 
@@ -96,7 +98,7 @@ export const useQuestionarioSaude = (onSucesso) => {
       bairro: paciente.endereco_bairro || '',
       rua: paciente.endereco_rua || '',
       
-      // Mapeamento do mapa de saúde interno
+      // Mapeamento do objeto 'saude' do cadastro de alunos
       cid: saudeMap.cids?.[0] || dQuest.cid || '',
       alergias: { 
         possui: saudeMap.temAlergia || dQuest.alergias?.possui || 'não', 
@@ -111,12 +113,13 @@ export const useQuestionarioSaude = (onSucesso) => {
         detalhes: typeof saudeMap.restricaoAlimentar === 'string' ? saudeMap.restricaoAlimentar : '' 
       },
       
+      // Unificação de contatos (Aluno vs Funcionário)
       contatos: dQuest.contatos || [
         { 
-          nome: paciente.contato1_nome || paciente.nomeMae || '', 
-          telefone: paciente.contato1_telefone || '' 
+          nome: paciente.nomeContato1 || paciente.contato1_nome || paciente.nomeMae || '', 
+          telefone: paciente.contato || paciente.contato1_telefone || '' 
         },
-        { nome: '', telefone: '' }
+        { nome: paciente.nomePai || '', telefone: '' }
       ]
     });
   };
@@ -130,10 +133,10 @@ export const useQuestionarioSaude = (onSucesso) => {
     const tId = toast.loading("Sincronizando...");
     
     try {
-      const nomeBusca = normalizeParaBanco(nome);
-      const colecao = tipo === 'aluno' ? "cadastro_aluno" : "funcionarios";
+      const nomeBusca = normalizeParaBanco(nome); // Garante busca em lowercase
+      const colecao = tipo === 'aluno' ? "cadastro_aluno" : "cadastro_funcionario";
       
-      // Busca pelo campo unidadeid (conforme seu banco)
+      // Filtro obrigatório por unidadeid para segurança e isolamento de dados
       const q = query(
         collection(db, colecao), 
         where("unidadeid", "==", escolaUsuarioId), 
@@ -145,15 +148,15 @@ export const useQuestionarioSaude = (onSucesso) => {
       const snap = await getDocs(q);
 
       if (snap.empty) {
-        toast.error("PACIENTE NÃO LOCALIZADO.", { id: tId });
+        toast.error("REGISTRO NÃO LOCALIZADO NESTA UNIDADE. VERIFIQUE ACENTOS.", { id: tId });
         return;
       }
 
       await selecionarPaciente({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      toast.success("Vínculo encontrado!", { id: tId });
+      toast.success("Dados carregados com sucesso!", { id: tId });
     } catch (error) {
       console.error(error);
-      toast.error("Erro na busca.");
+      toast.error("Erro ao conectar com o banco.");
     } finally { 
       setFetching(false); 
     }
@@ -168,14 +171,15 @@ export const useQuestionarioSaude = (onSucesso) => {
     try {
       const batch = writeBatch(db);
       
+      // Normalização de salvamento: tudo em minúsculo conforme diretrizes
       const payload = JSON.parse(JSON.stringify(formData), (key, value) => 
-        (typeof value === 'string' && key !== 'pacienteId' && key !== 'dataNascimento') 
+        (typeof value === 'string' && !['pacienteId', 'dataNascimento'].includes(key)) 
           ? normalizeParaBanco(value) 
           : value
       );
 
       payload.updatedAt = serverTimestamp();
-      payload.unidadeId = escolaUsuarioId; // Alinhado com a regra de segurança
+      payload.unidadeid = escolaUsuarioId; 
       payload.profissionalNome = user?.nome;
 
       batch.set(doc(db, "questionarios_saude", formData.pacienteId), payload, { merge: true });
@@ -183,14 +187,13 @@ export const useQuestionarioSaude = (onSucesso) => {
         temQuestionarioSaude: true,
         dataUltimaAtualizacaoSaude: serverTimestamp(),
         usuarioResponsavel: user?.nome,
-        unidadeId: escolaUsuarioId // Importante para as regras de segurança
+        unidadeid: escolaUsuarioId 
       }, { merge: true });
 
       await batch.commit();
       toast.success("Prontuário salvo!", { id: tId });
       if (onSucesso) onSucesso();
     } catch (error) { 
-      console.error(error);
       toast.error("Erro ao salvar."); 
     } finally { 
       setLoading(false); 
