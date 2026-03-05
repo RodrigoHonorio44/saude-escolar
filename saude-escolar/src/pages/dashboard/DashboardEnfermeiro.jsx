@@ -16,9 +16,10 @@ import FormCadastroFuncionario from "../funcionario/cadastro/FormCadastroFuncion
 import AtendimentoEnfermagem from "../atendimento/cadastro/AtendimentoEnfermagem";
 import QuestionarioSaude from "../dashboard/cadastro/QuestionarioSaude"; 
 
-// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA E AUDITORIA
+// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA, AUDITORIA E PRONTUÁRIO
 import DashboardSaudeInclusiva from "./DashboardSaudeInclusiva"; 
 import DashboardAuditoria from "./DashboardAuditoria"; 
+import ProntuarioDigital from "../alunos/ProntuarioDigital"; // <--- NOVO COMPONENTE IMPORTADO
 
 const MENU_ESTRUTURA = [
   { id: "home", label: "Painel Geral", icon: <LayoutDashboard size={20} />, key: "dashboard" },
@@ -105,12 +106,11 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
     return user?.modulosSidebar?.[itemKey] === true;
   }, [isRoot, cargoLower, user]);
 
-  // 🛡️ MONITOR DE MÉTRICAS COM BLINDAGEM R S
+  // 🛡️ MONITOR DE MÉTRICAS
   useEffect(() => {
     const unidId = userContext?.unidadeid;
     if (!unidId || unidId === "") return;
 
-    // Handler de erro para silenciar "permission-denied" no console
     const handleSyncError = (error) => {
       if (error.code === 'permission-denied') {
         console.log("ℹ️ Sincronização R S: Aguardando estabilização de permissões...");
@@ -232,6 +232,16 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
       return (
         <DashboardAuditoria 
           user={contextData}
+        />
+      );
+    }
+
+    // 🔥 NOVA ROTA: PRONTUÁRIO DIGITAL
+    if (activeTab === "pasta_digital") {
+      return (
+        <ProntuarioDigital 
+          user={contextData}
+          onVoltar={() => setActiveTab("home")}
         />
       );
     }
