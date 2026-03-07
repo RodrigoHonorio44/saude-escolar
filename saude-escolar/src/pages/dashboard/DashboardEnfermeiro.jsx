@@ -16,11 +16,12 @@ import FormCadastroFuncionario from "../funcionario/cadastro/FormCadastroFuncion
 import AtendimentoEnfermagem from "../atendimento/cadastro/AtendimentoEnfermagem";
 import QuestionarioSaude from "../dashboard/cadastro/QuestionarioSaude"; 
 
-// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA, AUDITORIA, PRONTUÁRIO E CONTATOS
+// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA, AUDITORIA, PRONTUÁRIO, CONTATOS E ARQUIVO
 import DashboardSaudeInclusiva from "./DashboardSaudeInclusiva"; 
 import DashboardAuditoria from "./DashboardAuditoria"; 
 import ProntuarioDigital from "../alunos/ProntuarioDigital"; 
-import BuscaContatos from "../alunos/BuscaContatos"; // <--- COMPONENTE ADICIONADO
+import BuscaContatos from "../alunos/BuscaContatos"; 
+import ArquivoBaenf from "../atendimento/ArquivoBaenf"; // <--- NOVO COMPONENTE ADICIONADO
 
 const MENU_ESTRUTURA = [
   { id: "home", label: "Painel Geral", icon: <LayoutDashboard size={20} />, key: "dashboard" },
@@ -246,10 +247,18 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
       );
     }
 
-    // 🔥 NOVA ROTA: BUSCA DE CONTATOS
     if (activeTab === "contato") {
       return (
         <BuscaContatos 
+          user={contextData}
+        />
+      );
+    }
+
+    // 🔥 ROTA ATUALIZADA: ARQUIVO BAENF
+    if (activeTab === "historico") {
+      return (
+        <ArquivoBaenf 
           user={contextData}
         />
       );
