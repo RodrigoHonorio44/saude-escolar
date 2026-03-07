@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useProntuarioDigital } from '../../hooks/useProntuarioDigital'; 
-import GaugeChart from 'react-gauge-chart'; // Lembre-se: npm install react-gauge-chart --legacy-peer-deps
-import { Search, User, FileText, Activity, Phone, ShieldAlert, Loader2, HeartPulse, Info, X } from 'lucide-react';
+import GaugeChart from 'react-gauge-chart'; 
+import { 
+  Search, User, FileText, Activity, Phone, ShieldAlert, 
+  Loader2, HeartPulse, Info, X, ClipboardCheck, Stethoscope, 
+  Ear, Eye, Moon, Utensils, Syringe, History, Calendar, Clock 
+} from 'lucide-react';
 
-// 📚 Base de Dados R S para consulta rápida de CIDs
 const DICIONARIO_CID = {
   "F84.0": "Autismo Infantil: Transtorno invasivo do desenvolvimento definido pela presença de desenvolvimento anormal antes dos 3 anos.",
   "F84.5": "Síndrome de Asperger: Transtorno caracterizado por dificuldades na interação social e padrões restritos de interesse.",
@@ -13,17 +16,17 @@ const DICIONARIO_CID = {
 };
 
 const ProntuarioDigital = () => {
-  const { prontuario, loading, buscarPorNome, limparProntuario } = useProntuarioDigital();
+  // ✅ Adicionado 'historico' vindo do hook
+  const { prontuario, questionario, historico, loading, buscarPorNome, limparProntuario } = useProntuarioDigital();
   const [busca, setBusca] = useState('');
   const [abaAtiva, setAbaAtiva] = useState('resumo');
-  const [cidInfo, setCidInfo] = useState(null); // Estado para controlar o Modal do CID
+  const [cidInfo, setCidInfo] = useState(null);
 
   const handlePesquisar = (e) => {
     e.preventDefault();
     buscarPorNome(busca);
   };
 
-  // ✅ Configurações do Velocímetro baseadas na sua imagem
   const imcAtual = prontuario?.imc ? parseFloat(prontuario.imc) : 0;
   const imcNormalizado = Math.min(Math.max((imcAtual - 10) / (50 - 10), 0), 1);
   const coresGauge = ["#0ea5e9", "#22c55e", "#eab308", "#f97316", "#ef4444"];
@@ -62,7 +65,7 @@ const ProntuarioDigital = () => {
       {prontuario ? (
         <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          {/* Header do Prontuário */}
+          {/* Header */}
           <div className="bg-white rounded-t-2xl p-6 shadow-sm border-b border-slate-100 flex justify-between items-center">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg">
@@ -76,13 +79,12 @@ const ProntuarioDigital = () => {
               </div>
             </div>
             
-            {/* Tags de CID e Turma (Agora clicáveis) */}
             <div className="flex flex-wrap gap-2 justify-end max-w-xs">
               {prontuario.saude?.cids?.map((cid, i) => (
                 <button 
                   key={i} 
-                  onClick={() => setCidInfo({ codigo: cid, descricao: DICIONARIO_CID[cid.toUpperCase()] || "Descrição não cadastrada nesta unidade." })}
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm flex items-center gap-1 transition-all active:scale-95"
+                  onClick={() => setCidInfo({ codigo: cid, descricao: DICIONARIO_CID[cid.toUpperCase()] || "Descrição não cadastrada." })}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm flex items-center gap-1 transition-all"
                 >
                   CID: {cid} <Info size={12} />
                 </button>
@@ -93,28 +95,31 @@ const ProntuarioDigital = () => {
             </div>
           </div>
 
-          {/* Menu de Abas */}
-          <div className="bg-white flex border-b border-slate-100">
-            {['resumo', 'contatos', 'acessibilidade'].map((aba) => (
+          {/* Menu de Abas Atualizado com "Histórico" */}
+          <div className="bg-white flex border-b border-slate-100 overflow-x-auto">
+            {['resumo', 'contatos', 'acessibilidade', 'triagem', 'historico'].map((aba) => (
               <button 
                 key={aba}
                 onClick={() => setAbaAtiva(aba)} 
-                className={`px-8 py-4 text-sm font-bold transition-all uppercase tracking-wider ${
+                className={`px-6 py-4 text-[10px] font-black transition-all uppercase tracking-widest whitespace-nowrap ${
                   abaAtiva === aba 
                     ? 'border-b-4 border-blue-600 text-blue-600 bg-blue-50/30' 
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
-                {aba === 'resumo' ? 'Resumo Clínico' : aba}
+                {aba === 'resumo' ? 'Resumo Clínico' : 
+                 aba === 'triagem' ? 'Triagem Completa' : 
+                 aba === 'historico' ? 'Histórico de Atendimentos' : aba}
               </button>
             ))}
           </div>
 
           {/* Conteúdo das Abas */}
-          <div className="bg-white p-8 rounded-b-2xl shadow-sm min-h-[350px]">
+          <div className="bg-white p-8 rounded-b-2xl shadow-sm min-h-[450px]">
+            
+            {/* ABA RESUMO CLÍNICO */}
             {abaAtiva === 'resumo' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Coluna 1: Gráfico de IMC */}
                 <div className="flex flex-col items-center space-y-2">
                   <h3 className="flex items-center gap-2 text-slate-700 font-black border-b w-full pb-2 mb-4 uppercase text-xs tracking-tighter">
                     <Activity size={16} className="text-blue-600"/> Índice de Massa Corporal
@@ -128,7 +133,6 @@ const ProntuarioDigital = () => {
                       percent={imcNormalizado} 
                       hideText={true}
                       needleColor="#475569"
-                      animate={true}
                     />
                     <div className="text-center -mt-6">
                       <p className="text-4xl font-black text-slate-800">{imcAtual}</p>
@@ -137,19 +141,8 @@ const ProntuarioDigital = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 w-full mt-6">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                      <p className="text-[10px] text-slate-400 uppercase font-black">Peso</p>
-                      <p className="text-lg font-black text-slate-700">{prontuario.peso} kg</p>
-                    </div>
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                      <p className="text-[10px] text-slate-400 uppercase font-black">Altura</p>
-                      <p className="text-lg font-black text-slate-700">{prontuario.altura} m</p>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Coluna 2: Alertas */}
                 <div className="space-y-4">
                   <h3 className="flex items-center gap-2 text-red-600 font-bold border-b pb-2 uppercase text-xs tracking-tighter">
                     <ShieldAlert size={18}/> Alertas de Saúde
@@ -159,19 +152,14 @@ const ProntuarioDigital = () => {
                       <p className="text-[10px] font-black text-red-700 uppercase mb-1">Alergias</p>
                       <p className="text-sm text-red-900 font-medium">{prontuario.alergias?.detalhes || 'Nenhuma informada'}</p>
                     </div>
-                    <div className="p-3 bg-orange-50 rounded-lg border border-orange-100">
-                      <p className="text-[10px] font-black text-orange-700 uppercase mb-1">Restrição Alimentar</p>
-                      <p className="text-sm text-orange-900 font-medium">{prontuario.restricaoAlimentar?.detalhes || 'Nenhuma'}</p>
-                    </div>
                   </div>
                 </div>
 
-                {/* Coluna 3: Medicamentos */}
                 <div className="space-y-4">
                   <h3 className="flex items-center gap-2 text-green-600 font-bold border-b pb-2 uppercase text-xs tracking-tighter">
                     <FileText size={18}/> Medicação Contínua
                   </h3>
-                  <div className="p-4 bg-green-50 rounded-xl border border-green-100 min-h-[100px]">
+                  <div className="p-4 bg-green-50 rounded-xl border border-green-100">
                     <p className="text-sm text-green-800 italic font-medium">
                       {prontuario.medicacaoContinua?.detalhes || 'Nenhuma medicação relatada.'}
                     </p>
@@ -180,23 +168,169 @@ const ProntuarioDigital = () => {
               </div>
             )}
 
-            {/* Abas Contatos e Acessibilidade (mantidas) */}
-            {abaAtiva === 'acessibilidade' && (
-              <div className="space-y-6">
-                <h3 className="flex items-center gap-2 text-slate-800 font-bold border-b pb-2 uppercase text-xs tracking-tighter">
-                   <HeartPulse size={18} className="text-blue-600"/> Necessidades de Acessibilidade
+            {/* ABA HISTÓRICO DE ENFERMARIA */}
+            {abaAtiva === 'historico' && (
+              <div className="animate-in fade-in duration-500">
+                <h3 className="flex items-center gap-2 text-slate-800 font-bold border-b pb-3 uppercase text-xs tracking-tighter mb-6">
+                  <History size={18} className="text-blue-600"/> Registros de Atendimentos na Enfermaria
                 </h3>
-                <div className="flex flex-wrap gap-3">
-                  {prontuario.saude?.acessibilidades?.length > 0 ? (
-                    prontuario.saude.acessibilidades.map((item, i) => (
-                      <span key={i} className="bg-white text-slate-700 px-5 py-3 rounded-2xl text-sm font-bold border border-slate-200 uppercase shadow-sm">
-                        {item}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-slate-400 italic">Nenhuma registrada.</p>
-                  )}
-                </div>
+
+                {historico && historico.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    {historico.map((atend, index) => (
+                      <div key={index} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                        {/* Header do Card */}
+                        <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                          <div className="flex gap-4">
+                            <span className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                              <Calendar size={14} className="text-blue-500"/> {atend.data}
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                              <Clock size={14} className="text-blue-500"/> {atend.horario}
+                            </span>
+                          </div>
+                          <span className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded-md font-bold uppercase">
+                            Atendente: {atend.atendenteNome}
+                          </span>
+                        </div>
+
+                        {/* Corpo do Card */}
+                        <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <div className="md:col-span-1">
+                            <p className="text-[9px] text-slate-400 uppercase font-black mb-1">Motivo</p>
+                            <p className="text-sm font-bold text-red-600 uppercase leading-tight">{atend.motivoAtendimento}</p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="text-[9px] text-slate-400 uppercase font-black mb-1">Procedimento Realizado</p>
+                            <p className="text-sm text-slate-700 font-medium">{atend.procedimentos}</p>
+                          </div>
+                          <div className="md:col-span-1">
+                            <p className="text-[9px] text-slate-400 uppercase font-black mb-1">Destino</p>
+                            <p className="text-xs font-black text-slate-600 uppercase bg-slate-100 px-2 py-1 rounded inline-block italic">
+                              {atend.destinoHospital}
+                            </p>
+                          </div>
+
+                          <div className="md:col-span-3 border-t border-slate-50 pt-3">
+                            <p className="text-[9px] text-slate-400 uppercase font-black mb-1">Observações</p>
+                            <p className="text-xs text-slate-500 italic leading-relaxed">
+                              {atend.observacoes || "Nenhuma observação registrada."}
+                            </p>
+                          </div>
+
+                          <div className="md:col-span-1 border-t border-slate-50 pt-3 flex flex-wrap gap-2">
+                            <div className="bg-blue-50 p-2 rounded-lg border border-blue-100 flex-1 min-w-[60px] text-center">
+                              <p className="text-[8px] text-blue-400 font-black uppercase">Temp.</p>
+                              <p className="text-xs font-bold text-blue-700">{atend.temperatura}°C</p>
+                            </div>
+                            <div className="bg-green-50 p-2 rounded-lg border border-green-100 flex-1 min-w-[60px] text-center">
+                              <p className="text-[8px] text-green-400 font-black uppercase">Peso</p>
+                              <p className="text-xs font-bold text-green-700">{atend.peso}kg</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                    <History size={40} className="mx-auto mb-3 text-slate-200" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs italic">
+                      Nenhum histórico de atendimento encontrado para este aluno.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ABA TRIAGEM COMPLETA */}
+            {abaAtiva === 'triagem' && (
+              <div className="animate-in fade-in duration-500">
+                {questionario ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-4 bg-red-50/30 p-5 rounded-2xl border border-red-100">
+                      <h4 className="flex items-center gap-2 text-red-600 font-black uppercase text-[10px] tracking-widest"><Stethoscope size={16}/> Alertas de Saúde</h4>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Alergias Detalhadas</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.alergias?.possui === 'sim' ? questionario.alergias.detalhes : 'Não possui'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Asma / Bronquite</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.asma?.possui === 'sim' ? questionario.asma.detalhes : 'Não possui'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Diabetes</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.diabetes?.possui === 'sim' ? questionario.diabetes.detalhes : 'Não possui'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 bg-blue-50/30 p-5 rounded-2xl border border-blue-100">
+                      <h4 className="flex items-center gap-2 text-blue-600 font-black uppercase text-[10px] tracking-widest"><Ear size={16}/> Sensorial e Visão</h4>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Aparelho Auditivo</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.aparelhoAuditivo?.possui === 'sim' ? questionario.aparelhoAuditivo.detalhes : 'Não utiliza'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Problema de Visão</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.problemaVisao?.possui === 'sim' ? questionario.problemaVisao.detalhes : 'Não possui'}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Seletividade Alimentar</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.seletividadeAlimentar?.detalhes || 'Não'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                      <h4 className="flex items-center gap-2 text-slate-600 font-black uppercase text-[10px] tracking-widest"><Moon size={16}/> Sono e Rotina</h4>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Horas de Sono / Despertares</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.horasSono}h - Desperta {questionario.despertaNoite?.detalhes}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Autonomia de Higiene</p>
+                          <p className="text-sm font-bold text-slate-700 uppercase">{questionario.autonomiaHigiene}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Humor / Comportamento</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.mudancaHumor?.detalhes || 'Sem alterações'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-span-full bg-slate-900 text-white p-6 rounded-3xl flex flex-wrap justify-between items-center gap-6 mt-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-white/10 rounded-full"><ClipboardCheck size={24}/></div>
+                          <div>
+                            <p className="text-[9px] text-white/50 uppercase font-black">Cartão SUS</p>
+                            <p className="text-lg font-mono font-bold">{questionario.cartaoSus}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-green-500/20 rounded-full text-green-400"><Syringe size={24}/></div>
+                          <div>
+                            <p className="text-[9px] text-white/50 uppercase font-black">Status Vacinal</p>
+                            <p className="text-lg font-bold text-green-400 uppercase">{questionario.vacinaStatus}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-white/10 rounded-full"><Activity size={24}/></div>
+                          <div>
+                            <p className="text-[9px] text-white/50 uppercase font-black">Atestado Físico</p>
+                            <p className="text-lg font-bold uppercase">{questionario.atestadoAtividadeFisica}</p>
+                          </div>
+                        </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Aguardando dados da triagem completa...</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -214,6 +348,25 @@ const ProntuarioDigital = () => {
                 ))}
               </div>
             )}
+
+            {abaAtiva === 'acessibilidade' && (
+              <div className="space-y-6">
+                <h3 className="flex items-center gap-2 text-slate-800 font-bold border-b pb-2 uppercase text-xs tracking-tighter">
+                   <HeartPulse size={18} className="text-blue-600"/> Necessidades de Acessibilidade
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {prontuario.saude?.acessibilidades?.length > 0 ? (
+                    prontuario.saude.acessibilidades.map((item, i) => (
+                      <span key={i} className="bg-white text-slate-700 px-5 py-3 rounded-2xl text-sm font-bold border border-slate-200 uppercase shadow-sm">
+                        {item}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-slate-400 italic text-sm">Nenhuma registrada.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           
           <button onClick={limparProntuario} className="mt-6 text-slate-400 hover:text-red-500 text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 mx-auto">
@@ -229,7 +382,7 @@ const ProntuarioDigital = () => {
         </div>
       )}
 
-      {/* ✅ MODAL INFORMATIVO DO CID R S */}
+      {/* MODAL CID */}
       {cidInfo && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
@@ -239,10 +392,7 @@ const ProntuarioDigital = () => {
             </div>
             <div className="p-8">
               <p className="text-slate-600 font-medium text-lg leading-relaxed italic">"{cidInfo.descricao}"</p>
-              <button 
-                onClick={() => setCidInfo(null)}
-                className="w-full mt-8 bg-slate-100 text-slate-700 font-bold py-4 rounded-2xl uppercase text-xs tracking-widest"
-              >
+              <button onClick={() => setCidInfo(null)} className="w-full mt-8 bg-slate-100 text-slate-700 font-bold py-4 rounded-2xl uppercase text-xs tracking-widest">
                 Entendi
               </button>
             </div>

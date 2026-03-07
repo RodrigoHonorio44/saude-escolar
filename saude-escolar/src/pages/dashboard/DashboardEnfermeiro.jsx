@@ -16,10 +16,11 @@ import FormCadastroFuncionario from "../funcionario/cadastro/FormCadastroFuncion
 import AtendimentoEnfermagem from "../atendimento/cadastro/AtendimentoEnfermagem";
 import QuestionarioSaude from "../dashboard/cadastro/QuestionarioSaude"; 
 
-// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA, AUDITORIA E PRONTUÁRIO
+// 🔥 NOVAS IMPORTAÇÕES: SAÚDE INCLUSIVA, AUDITORIA, PRONTUÁRIO E CONTATOS
 import DashboardSaudeInclusiva from "./DashboardSaudeInclusiva"; 
 import DashboardAuditoria from "./DashboardAuditoria"; 
-import ProntuarioDigital from "../alunos/ProntuarioDigital"; // <--- NOVO COMPONENTE IMPORTADO
+import ProntuarioDigital from "../alunos/ProntuarioDigital"; 
+import BuscaContatos from "../alunos/BuscaContatos"; // <--- COMPONENTE ADICIONADO
 
 const MENU_ESTRUTURA = [
   { id: "home", label: "Painel Geral", icon: <LayoutDashboard size={20} />, key: "dashboard" },
@@ -236,12 +237,20 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
       );
     }
 
-    // 🔥 NOVA ROTA: PRONTUÁRIO DIGITAL
     if (activeTab === "pasta_digital") {
       return (
         <ProntuarioDigital 
           user={contextData}
           onVoltar={() => setActiveTab("home")}
+        />
+      );
+    }
+
+    // 🔥 NOVA ROTA: BUSCA DE CONTATOS
+    if (activeTab === "contato") {
+      return (
+        <BuscaContatos 
+          user={contextData}
         />
       );
     }
@@ -359,7 +368,7 @@ const DashboardEnfermeiro = ({ user: initialUser, onLogout }) => {
             <button onClick={() => setIsExpanded(!isExpanded)} className="p-3 hover:bg-slate-100 rounded-xl transition-all text-slate-400"><Menu size={24}/></button>
             <div className="flex flex-col text-left">
               <h1 className="text-sm font-black uppercase italic tracking-[0.2em] text-slate-400 leading-none">
-                {activeTab === "alunos_especiais" ? "Saúde Inclusiva" : activeTab === "auditoria" ? "Relatórios Pro" : (MENU_ESTRUTURA.find(i => i.id === activeTab)?.label || "Dashboard")}
+                {activeTab === "contato" ? "Busca de Contatos" : activeTab === "alunos_especiais" ? "Saúde Inclusiva" : activeTab === "auditoria" ? "Relatórios Pro" : (MENU_ESTRUTURA.find(i => i.id === activeTab)?.label || "Dashboard")}
               </h1>
               <p className={`text-lg font-black uppercase tracking-tighter mt-1 ${darkMode ? "text-white" : "text-slate-800"}`}>
                 {userContext?.unidade || "unidade"}
