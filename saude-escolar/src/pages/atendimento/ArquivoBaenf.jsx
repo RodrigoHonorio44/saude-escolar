@@ -3,7 +3,7 @@ import { db } from "../../config/firebase";
 import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { Search, User, FilterX, Trash2, Loader2, ChevronRight, X, Activity, AlertTriangle, Clock } from "lucide-react";
+import { Search, User, FilterX, Trash2, Loader2, ChevronRight, X, Activity, AlertTriangle, Clock, ShieldCheck } from "lucide-react"; 
 
 const ArquivoBaenf = ({ user }) => {
   const [nomeBusca, setNomeBusca] = useState('');
@@ -28,7 +28,7 @@ const ArquivoBaenf = ({ user }) => {
     return () => unsubscribe();
   }, [user?.unidadeid]);
 
-  // 2. Busca e Filtro (Unificando lógica de Unidade Escolar)
+  // 2. Busca e Filtro
   useEffect(() => {
     if (!user?.unidadeid || nomeBusca !== '') return;
 
@@ -67,7 +67,6 @@ const ArquivoBaenf = ({ user }) => {
     } catch (e) { console.error(e); } finally { setCarregando(false); }
   };
 
-  // Lógica de Paginação
   const totalPaginas = Math.ceil(atendimentos.length / itensPorPagina);
   const indexUltimoItem = paginaAtual * itensPorPagina;
   const indexPrimeiroItem = indexUltimoItem - itensPorPagina;
@@ -89,7 +88,9 @@ const ArquivoBaenf = ({ user }) => {
                 value={nomeBusca}
                 onChange={(e) => setNomeBusca(e.target.value)}
               />
-              <button type="submit" className="absolute right-2 top-1.5 p-1.5 bg-blue-600 text-white rounded-xl"><Search size={18}/></button>
+              <button type="submit" className="absolute right-2 top-1.5 p-1.5 bg-blue-600 text-white rounded-xl">
+                {carregando ? <Loader2 size={18} className="animate-spin"/> : <Search size={18}/>}
+              </button>
             </form>
           </div>
 
@@ -135,7 +136,6 @@ const ArquivoBaenf = ({ user }) => {
             ))}
           </div>
 
-          {/* CONTROLES DE PAGINAÇÃO */}
           {totalPaginas > 1 && (
             <div className="flex justify-center items-center gap-4 mt-8">
               <button 
@@ -154,68 +154,130 @@ const ArquivoBaenf = ({ user }) => {
         </div>
       </div>
 
-      {/* MODAL DE DETALHES COMPLETOS */}
+      {/* MODAL DE DETALHES COMPLETOS - ATUALIZADO E ORGANIZADO */}
       {itemSelecionado && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[40px] shadow-2xl relative p-8">
-            <button onClick={() => setItemSelecionado(null)} className="absolute right-6 top-6 p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-colors">
-                <X size={24} />
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-[40px] shadow-2xl relative p-6 md:p-10 border border-white/20">
+            
+            <button 
+              onClick={() => setItemSelecionado(null)} 
+              className="absolute right-6 top-6 p-2.5 bg-slate-100 rounded-full text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-all active:scale-95 z-10"
+            >
+              <X size={24} />
             </button>
 
-            {/* Cabeçalho do Detalhe */}
-            <div className="flex items-center gap-4 mb-8">
-                <div className="h-16 w-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-                    <User size={32} />
+            {/* Cabeçalho do Modal */}
+            <div className="flex flex-col md:flex-row items-center gap-6 mb-10 pb-6 border-b border-slate-100">
+              <div className="h-20 w-20 bg-blue-600 text-white rounded-[24px] flex items-center justify-center shadow-xl shadow-blue-200 shrink-0">
+                <User size={40} />
+              </div>
+              <div className="text-center md:text-left">
+                <h2 className="text-2xl font-black uppercase italic text-slate-800 leading-tight mb-1">
+                  {itemSelecionado.nomePaciente}
+                </h2>
+                <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                  <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded-lg border border-blue-100 uppercase italic">
+                    RA: {itemSelecionado.baenf?.split('-').pop()}
+                  </span>
+                  <span className="text-[10px] font-black bg-slate-50 text-slate-500 px-3 py-1 rounded-lg border border-slate-100 uppercase italic">
+                    Turma {itemSelecionado.turma}
+                  </span>
                 </div>
-                <div>
-                    <h2 className="text-xl font-black uppercase italic text-slate-800 leading-none">{itemSelecionado.nomePaciente}</h2>
-                    <p className="text-sm font-bold text-blue-500 uppercase mt-1">RA: {itemSelecionado.baenf}</p>
-                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Dados Técnicos */}
-                <div className="space-y-4">
-                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                        <h5 className="flex items-center gap-2 text-[10px] font-black uppercase italic text-slate-400 mb-3"><Activity size={14}/> Sinais Vitais / Medidas</h5>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><p className="text-[9px] text-slate-400 uppercase font-black">Peso/Altura</p><p className="font-bold text-slate-700">{itemSelecionado.peso}kg / {itemSelecionado.altura}m</p></div>
-                            <div><p className="text-[9px] text-slate-400 uppercase font-black">IMC</p><p className="font-bold text-slate-700">{itemSelecionado.imc}</p></div>
-                            <div><p className="text-[9px] text-slate-400 uppercase font-black">Temperatura</p><p className="font-bold text-rose-500">{itemSelecionado.temperatura}°C</p></div>
-                            <div><p className="text-[9px] text-slate-400 uppercase font-black">Idade</p><p className="font-bold text-slate-700">{itemSelecionado.idade} anos</p></div>
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Coluna 1: Dados Vitais e Alergias */}
+              <div className="space-y-6">
+                <div className="bg-slate-50/80 p-5 rounded-[32px] border border-slate-100">
+                  <h5 className="flex items-center gap-2 text-[11px] font-black uppercase italic text-slate-400 mb-4 tracking-wider">
+                    <Activity size={16} className="text-blue-500"/> Sinais Vitais
+                  </h5>
+                  <div className="grid grid-cols-2 gap-y-5 gap-x-2">
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">Peso / Altura</p>
+                      <p className="font-bold text-slate-700 text-sm">{itemSelecionado.peso}kg / {itemSelecionado.altura}m</p>
                     </div>
-
-                    <div className="bg-amber-50 p-4 rounded-3xl border border-amber-100">
-                        <h5 className="flex items-center gap-2 text-[10px] font-black uppercase italic text-amber-500 mb-2"><AlertTriangle size={14}/> Alergias & CID</h5>
-                        <p className="text-[11px] font-bold text-amber-700 uppercase">Alergia: {itemSelecionado.alunoPossuiAlergia === "sim" ? itemSelecionado.qualAlergia : "Nenhuma"}</p>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                            {itemSelecionado.saude?.cids?.map(cid => <span key={cid} className="bg-white px-2 py-0.5 rounded text-[9px] font-black text-amber-600 border border-amber-200">{cid}</span>)}
-                        </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">IMC</p>
+                      <p className="font-bold text-slate-700 text-sm">{itemSelecionado.imc || "N/A"}</p>
                     </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">Temperatura</p>
+                      <p className="font-bold text-rose-500 text-sm">{itemSelecionado.temperatura}°C</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">Idade</p>
+                      <p className="font-bold text-slate-700 text-sm">{itemSelecionado.idade} anos</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Dados Atendimento */}
-                <div className="space-y-4">
-                    <div className="bg-blue-50/50 p-4 rounded-3xl border border-blue-100">
-                        <h5 className="flex items-center gap-2 text-[10px] font-black uppercase italic text-blue-500 mb-3"><Clock size={14}/> Registro</h5>
-                        <p className="text-[10px] text-slate-400 font-black uppercase mb-1">Motivo:</p>
-                        <p className="text-xs font-bold text-slate-700 mb-3">{itemSelecionado.motivoAtendimento}</p>
-                        <p className="text-[10px] text-slate-400 font-black uppercase mb-1">Conduta/Procedimentos:</p>
-                        <p className="text-xs font-bold text-slate-700">{itemSelecionado.procedimentos}</p>
+                <div className="bg-amber-50/80 p-5 rounded-[32px] border border-amber-100">
+                  <h5 className="flex items-center gap-2 text-[11px] font-black uppercase italic text-amber-500 mb-3 tracking-wider">
+                    <AlertTriangle size={16}/> Alergias & CID
+                  </h5>
+                  <p className="text-[11px] font-bold text-amber-700 uppercase leading-relaxed">
+                    {itemSelecionado.alunoPossuiAlergia === "sim" ? `Alergia: ${itemSelecionado.qualAlergia}` : "Sem alergias relatadas"}
+                  </p>
+                  {itemSelecionado.saude?.cids?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {itemSelecionado.saude.cids.map(cid => (
+                        <span key={cid} className="bg-white px-3 py-1 rounded-full text-[10px] font-black text-amber-600 border border-amber-200 uppercase">
+                          {cid}
+                        </span>
+                      ))}
                     </div>
-
-                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                        <p className="text-[9px] text-slate-400 uppercase font-black">Responsável</p>
-                        <p className="text-xs font-bold text-slate-700">{itemSelecionado.atendenteNome}</p>
-                        <p className="text-[9px] text-slate-400 uppercase font-black mt-2">Destino</p>
-                        <p className="text-xs font-bold text-blue-600 uppercase">{itemSelecionado.destinoHospital}</p>
-                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Coluna 2: Registro e Atendimento */}
+              <div className="space-y-6">
+                <div className="bg-blue-50/40 p-5 rounded-[32px] border border-blue-100">
+                  <h5 className="flex items-center gap-2 text-[11px] font-black uppercase italic text-blue-500 mb-4 tracking-wider">
+                    <Clock size={16}/> Evolução
+                  </h5>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-black uppercase mb-1">Motivo:</p>
+                      <p className="text-xs font-bold text-slate-700 leading-relaxed uppercase">{itemSelecionado.motivoAtendimento}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 font-black uppercase mb-1">Conduta:</p>
+                      <p className="text-xs font-bold text-slate-700 leading-relaxed uppercase">{itemSelecionado.procedimentos}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50/80 p-5 rounded-[32px] border border-slate-100">
+                  <h5 className="flex items-center gap-2 text-[11px] font-black uppercase italic text-slate-400 mb-4 tracking-wider">
+                    <ShieldCheck size={16} className="text-emerald-500"/> Responsável
+                  </h5>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">Profissional</p>
+                      <p className="text-xs font-black text-slate-700 uppercase italic">{itemSelecionado.atendenteNome}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">Registro (COREN)</p>
+                      <p className="text-xs font-black text-blue-600 uppercase">
+                        {itemSelecionado.atendenteRegistro || "N/A"}
+                      </p>
+                    </div>
+                    <div className="pt-2">
+                      <p className="text-[9px] text-slate-400 uppercase font-black mb-0.5">Destino</p>
+                      <p className="text-xs font-black text-emerald-600 uppercase italic">{itemSelecionado.destinoHospital}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-slate-100">
-                <p className="text-[10px] text-slate-300 font-black uppercase italic text-center">Protocolo Gerado em {itemSelecionado.criadoEm?.toDate().toLocaleString()}</p>
+            <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col items-center">
+              <p className="text-[10px] text-slate-300 font-black uppercase italic tracking-widest">
+                Protocolo Gerado em {itemSelecionado.criadoEm?.toDate().toLocaleString('pt-BR')}
+              </p>
             </div>
           </div>
         </div>

@@ -16,7 +16,6 @@ const DICIONARIO_CID = {
 };
 
 const ProntuarioDigital = () => {
-  // ✅ Adicionado 'historico' vindo do hook
   const { prontuario, questionario, historico, loading, buscarPorNome, limparProntuario } = useProntuarioDigital();
   const [busca, setBusca] = useState('');
   const [abaAtiva, setAbaAtiva] = useState('resumo');
@@ -27,11 +26,24 @@ const ProntuarioDigital = () => {
     buscarPorNome(busca);
   };
 
-  const imcAtual = prontuario?.imc ? parseFloat(prontuario.imc) : 0;
+  // ✅ CORREÇÃO IMC: Cálculo automático se o campo imc vier vazio
+  const calcularIMC = () => {
+    if (prontuario?.imc && prontuario.imc !== "") return parseFloat(prontuario.imc);
+    
+    if (prontuario?.peso && prontuario?.altura) {
+      const p = parseFloat(prontuario.peso);
+      const a = parseFloat(prontuario.altura);
+      if (a > 0) return parseFloat((p / (a * a)).toFixed(2));
+    }
+    return 0;
+  };
+
+  const imcAtual = calcularIMC();
   const imcNormalizado = Math.min(Math.max((imcAtual - 10) / (50 - 10), 0), 1);
   const coresGauge = ["#0ea5e9", "#22c55e", "#eab308", "#f97316", "#ef4444"];
 
   const getStatusIMC = (imc) => {
+    if (imc === 0) return { label: "Dados Insuficientes", color: "text-slate-400" };
     if (imc < 18.5) return { label: "Abaixo do Peso", color: "text-sky-500" };
     if (imc <= 24.9) return { label: "Normal", color: "text-green-500" };
     if (imc <= 29.9) return { label: "Sobrepeso", color: "text-yellow-500" };
@@ -41,7 +53,6 @@ const ProntuarioDigital = () => {
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
-      {/* Barra de Busca */}
       <div className="max-w-4xl mx-auto mb-8">
         <form onSubmit={handlePesquisar} className="relative">
           <input 
@@ -65,7 +76,6 @@ const ProntuarioDigital = () => {
       {prontuario ? (
         <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          {/* Header */}
           <div className="bg-white rounded-t-2xl p-6 shadow-sm border-b border-slate-100 flex justify-between items-center">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg">
@@ -95,7 +105,6 @@ const ProntuarioDigital = () => {
             </div>
           </div>
 
-          {/* Menu de Abas Atualizado com "Histórico" */}
           <div className="bg-white flex border-b border-slate-100 overflow-x-auto">
             {['resumo', 'contatos', 'acessibilidade', 'triagem', 'historico'].map((aba) => (
               <button 
@@ -114,10 +123,8 @@ const ProntuarioDigital = () => {
             ))}
           </div>
 
-          {/* Conteúdo das Abas */}
           <div className="bg-white p-8 rounded-b-2xl shadow-sm min-h-[450px]">
             
-            {/* ABA RESUMO CLÍNICO */}
             {abaAtiva === 'resumo' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="flex flex-col items-center space-y-2">
@@ -135,7 +142,7 @@ const ProntuarioDigital = () => {
                       needleColor="#475569"
                     />
                     <div className="text-center -mt-6">
-                      <p className="text-4xl font-black text-slate-800">{imcAtual}</p>
+                      <p className="text-4xl font-black text-slate-800">{imcAtual || "---"}</p>
                       <p className={`text-sm font-bold uppercase tracking-widest ${getStatusIMC(imcAtual).color}`}>
                         {getStatusIMC(imcAtual).label}
                       </p>
@@ -168,7 +175,6 @@ const ProntuarioDigital = () => {
               </div>
             )}
 
-            {/* ABA HISTÓRICO DE ENFERMARIA */}
             {abaAtiva === 'historico' && (
               <div className="animate-in fade-in duration-500">
                 <h3 className="flex items-center gap-2 text-slate-800 font-bold border-b pb-3 uppercase text-xs tracking-tighter mb-6">
@@ -179,7 +185,6 @@ const ProntuarioDigital = () => {
                   <div className="grid grid-cols-1 gap-4">
                     {historico.map((atend, index) => (
                       <div key={index} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-                        {/* Header do Card */}
                         <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
                           <div className="flex gap-4">
                             <span className="flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-wider">
@@ -189,12 +194,12 @@ const ProntuarioDigital = () => {
                               <Clock size={14} className="text-blue-500"/> {atend.horario}
                             </span>
                           </div>
+                          {/* ✅ CORREÇÃO: De Atendente para Profissional + Coren */}
                           <span className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded-md font-bold uppercase">
-                            Atendente: {atend.atendenteNome}
+                            Profissional: {atend.atendenteNome} | {atend.atendenteRegistro}
                           </span>
                         </div>
 
-                        {/* Corpo do Card */}
                         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-6">
                           <div className="md:col-span-1">
                             <p className="text-[9px] text-slate-400 uppercase font-black mb-1">Motivo</p>
@@ -243,7 +248,6 @@ const ProntuarioDigital = () => {
               </div>
             )}
 
-            {/* ABA TRIAGEM COMPLETA */}
             {abaAtiva === 'triagem' && (
               <div className="animate-in fade-in duration-500">
                 {questionario ? (

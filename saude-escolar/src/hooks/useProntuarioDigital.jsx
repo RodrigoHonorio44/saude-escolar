@@ -8,7 +8,7 @@ import {
   where, 
   getDocs, 
   limit,
-  orderBy // ✅ Adicionado para ordenar o histórico
+  orderBy 
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -17,7 +17,7 @@ export const useProntuarioDigital = () => {
   const [loading, setLoading] = useState(false);
   const [prontuario, setProntuario] = useState(null);
   const [questionario, setQuestionario] = useState(null); 
-  const [historico, setHistorico] = useState([]); // ✅ Novo estado para o array de atendimentos
+  const [historico, setHistorico] = useState([]); 
   const { user } = useAuth();
 
   const unidadeIdLogada = (user?.unidadeid || user?.unidadeId || user?.escolaId)?.toLowerCase().trim();
@@ -33,7 +33,7 @@ export const useProntuarioDigital = () => {
         collection(db, "atendimento_enfermagem"),
         where("pacienteId", "==", pacienteId),
         where("unidadeid", "==", unidadeIdLogada),
-        orderBy("data", "desc") // 🔥 Traz os atendimentos mais recentes primeiro
+        orderBy("data", "desc") 
       );
 
       const querySnapshot = await getDocs(q);
@@ -45,7 +45,6 @@ export const useProntuarioDigital = () => {
       setHistorico(listaAtendimentos);
     } catch (error) {
       console.error("Erro ao buscar histórico de enfermagem:", error);
-      // Nota: Se der erro de índice, o link aparecerá no console do navegador.
     }
   }, [unidadeIdLogada]);
 
@@ -85,7 +84,7 @@ export const useProntuarioDigital = () => {
     setLoading(true);
     setProntuario(null);
     setQuestionario(null);
-    setHistorico([]); // Limpa histórico anterior
+    setHistorico([]); 
 
     try {
       const nomeBusca = nome.toLowerCase().trim();
@@ -108,9 +107,17 @@ export const useProntuarioDigital = () => {
       const idDocumento = querySnapshot.docs[0].id;
       const pId = dadosAluno.pacienteId || idDocumento;
 
+      // ✅ Lógica de cálculo de IMC preventivo
+      const peso = parseFloat(dadosAluno.peso || 0);
+      const altura = parseFloat(dadosAluno.altura || 0);
+      const imcCalculado = (peso > 0 && altura > 0) 
+        ? (peso / (altura * altura)).toFixed(2) 
+        : dadosAluno.imc || "";
+
       const dadosConsolidados = {
         id: idDocumento,
         ...dadosAluno,
+        imc: imcCalculado, // ✅ Garante que o IMC chegue calculado se houver peso/altura
         alunoNome: dadosAluno.nomeExibicao || dadosAluno.nome,
         pacienteId: pId, 
         alergias: { detalhes: dadosAluno.saude?.alergiasDesc || "Nenhuma" },
@@ -121,7 +128,6 @@ export const useProntuarioDigital = () => {
 
       setProntuario(dadosConsolidados);
       
-      // 🔥 Dispara as buscas paralelas para as abas detalhadas
       await Promise.all([
         buscarQuestionarioDetalhado(pId),
         buscarHistoricoEnfermagem(pId)
@@ -145,7 +151,7 @@ export const useProntuarioDigital = () => {
   return {
     prontuario,
     questionario,
-    historico, // ✅ Agora retorna o array de atendimentos
+    historico,
     loading,
     buscarPorNome,
     limparProntuario,
