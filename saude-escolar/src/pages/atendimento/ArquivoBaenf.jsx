@@ -3,7 +3,9 @@ import { db } from "../../config/firebase";
 import { collection, query, where, onSnapshot, getDocs, orderBy } from 'firebase/firestore';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { Search, User, FilterX, Trash2, Loader2, ChevronRight, X, Activity, AlertTriangle, Clock, ShieldCheck } from "lucide-react"; 
+// Adicionado Printer nos ícones
+import { Search, User, FilterX, Trash2, Loader2, ChevronRight, X, Activity, AlertTriangle, Clock, ShieldCheck, Printer } from "lucide-react"; 
+import ImpressaoBaenf from '../../components/ImpressaoBaenf'; // Importando o componente de impressão
 
 const ArquivoBaenf = ({ user }) => {
   const [nomeBusca, setNomeBusca] = useState('');
@@ -12,12 +14,15 @@ const ArquivoBaenf = ({ user }) => {
   const [datasComAtendimento, setDatasComAtendimento] = useState([]);
   const [carregando, setCarregando] = useState(false);
   
-  // Estados para Paginação e Detalhes
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 6;
 
-  // 1. Monitorar datas (Bolinhas no calendário)
+  // Função para disparar a impressão
+  const handleImprimir = () => {
+    window.print();
+  };
+
   useEffect(() => {
     if (!user?.unidadeid) return;
     const q = query(collection(db, "atendimento_enfermagem"), where("unidadeid", "==", user.unidadeid));
@@ -28,7 +33,6 @@ const ArquivoBaenf = ({ user }) => {
     return () => unsubscribe();
   }, [user?.unidadeid]);
 
-  // 2. Busca e Filtro
   useEffect(() => {
     if (!user?.unidadeid || nomeBusca !== '') return;
 
@@ -154,17 +158,28 @@ const ArquivoBaenf = ({ user }) => {
         </div>
       </div>
 
-      {/* MODAL DE DETALHES COMPLETOS - ATUALIZADO E ORGANIZADO */}
+      {/* MODAL DE DETALHES COMPLETOS */}
       {itemSelecionado && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-[40px] shadow-2xl relative p-6 md:p-10 border border-white/20">
             
-            <button 
-              onClick={() => setItemSelecionado(null)} 
-              className="absolute right-6 top-6 p-2.5 bg-slate-100 rounded-full text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-all active:scale-95 z-10"
-            >
-              <X size={24} />
-            </button>
+            {/* AÇÕES DO MODAL (IMPRIMIR E FECHAR) */}
+            <div className="absolute right-6 top-6 flex items-center gap-2">
+              <button 
+                onClick={handleImprimir}
+                className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-200 flex items-center gap-2 px-4 group"
+              >
+                <Printer size={18} className="group-hover:rotate-12 transition-transform" />
+                <span className="text-[10px] font-black uppercase italic">Imprimir</span>
+              </button>
+              
+              <button 
+                onClick={() => setItemSelecionado(null)} 
+                className="p-2.5 bg-slate-100 rounded-full text-slate-500 hover:bg-rose-50 hover:text-rose-500 transition-all active:scale-95"
+              >
+                <X size={24} />
+              </button>
+            </div>
 
             {/* Cabeçalho do Modal */}
             <div className="flex flex-col md:flex-row items-center gap-6 mb-10 pb-6 border-b border-slate-100">
@@ -187,7 +202,6 @@ const ArquivoBaenf = ({ user }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Coluna 1: Dados Vitais e Alergias */}
               <div className="space-y-6">
                 <div className="bg-slate-50/80 p-5 rounded-[32px] border border-slate-100">
                   <h5 className="flex items-center gap-2 text-[11px] font-black uppercase italic text-slate-400 mb-4 tracking-wider">
@@ -232,7 +246,6 @@ const ArquivoBaenf = ({ user }) => {
                 </div>
               </div>
 
-              {/* Coluna 2: Registro e Atendimento */}
               <div className="space-y-6">
                 <div className="bg-blue-50/40 p-5 rounded-[32px] border border-blue-100">
                   <h5 className="flex items-center gap-2 text-[11px] font-black uppercase italic text-blue-500 mb-4 tracking-wider">
@@ -282,6 +295,9 @@ const ArquivoBaenf = ({ user }) => {
           </div>
         </div>
       )}
+
+      {/* COMPONENTE DE IMPRESSÃO (Fica escondido na tela) */}
+      <ImpressaoBaenf dados={itemSelecionado} />
     </div>
   );
 };

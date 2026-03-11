@@ -114,16 +114,36 @@ export const useProntuarioDigital = () => {
         ? (peso / (altura * altura)).toFixed(2) 
         : dadosAluno.imc || "";
 
+      // ✅ MAPEAMENTO DE CONTATOS (Transforma campos individuais em Array para a Interface)
+      const listaContatosMapeados = [];
+      
+      if (dadosAluno.contato1_nome) {
+        listaContatosMapeados.push({
+          nome: dadosAluno.contato1_nome,
+          parentesco: dadosAluno.contato1_parentesco || "Não informado",
+          telefone: dadosAluno.contato1_telefone || "Sem telefone"
+        });
+      }
+
+      if (dadosAluno.contato2_nome) {
+        listaContatosMapeados.push({
+          nome: dadosAluno.contato2_nome,
+          parentesco: dadosAluno.contato2_parentesco || "Não informado",
+          telefone: dadosAluno.contato2_telefone || "Sem telefone"
+        });
+      }
+
       const dadosConsolidados = {
         id: idDocumento,
         ...dadosAluno,
-        imc: imcCalculado, // ✅ Garante que o IMC chegue calculado se houver peso/altura
+        imc: imcCalculado, 
         alunoNome: dadosAluno.nomeExibicao || dadosAluno.nome,
         pacienteId: pId, 
         alergias: { detalhes: dadosAluno.saude?.alergiasDesc || "Nenhuma" },
         restricaoAlimentar: { detalhes: dadosAluno.saude?.restricaoAlimentar || "Não possui" },
         medicacaoContinua: { detalhes: dadosAluno.saude?.medicamentoDesc || "Não utiliza" },
-        contatos: dadosAluno.contatos || []
+        // ✅ Prioriza a lista mapeada, se estiver vazia tenta pegar o array 'contatos' ou retorna array vazio
+        contatos: listaContatosMapeados.length > 0 ? listaContatosMapeados : (dadosAluno.contatos || [])
       };
 
       setProntuario(dadosConsolidados);
