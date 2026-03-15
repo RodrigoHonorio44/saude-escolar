@@ -26,7 +26,6 @@ const ProntuarioDigital = () => {
     buscarPorNome(busca);
   };
 
-  // ✅ CORREÇÃO IMC: Cálculo automático se o campo imc vier vazio
   const calcularIMC = () => {
     if (prontuario?.imc && prontuario.imc !== "") return parseFloat(prontuario.imc);
     
@@ -194,7 +193,6 @@ const ProntuarioDigital = () => {
                               <Clock size={14} className="text-blue-500"/> {atend.horario}
                             </span>
                           </div>
-                          {/* ✅ CORREÇÃO: De Atendente para Profissional + Coren */}
                           <span className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded-md font-bold uppercase">
                             Profissional: {atend.atendenteNome} | {atend.atendenteRegistro}
                           </span>
@@ -251,7 +249,8 @@ const ProntuarioDigital = () => {
             {abaAtiva === 'triagem' && (
               <div className="animate-in fade-in duration-500">
                 {questionario ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Alertas de Saúde */}
                     <div className="space-y-4 bg-red-50/30 p-5 rounded-2xl border border-red-100">
                       <h4 className="flex items-center gap-2 text-red-600 font-black uppercase text-[10px] tracking-widest"><Stethoscope size={16}/> Alertas de Saúde</h4>
                       <div className="space-y-3">
@@ -270,6 +269,7 @@ const ProntuarioDigital = () => {
                       </div>
                     </div>
 
+                    {/* Sensorial e Visão */}
                     <div className="space-y-4 bg-blue-50/30 p-5 rounded-2xl border border-blue-100">
                       <h4 className="flex items-center gap-2 text-blue-600 font-black uppercase text-[10px] tracking-widest"><Ear size={16}/> Sensorial e Visão</h4>
                       <div className="space-y-3">
@@ -283,11 +283,35 @@ const ProntuarioDigital = () => {
                         </div>
                         <div className="bg-white p-3 rounded-xl shadow-sm">
                           <p className="text-[9px] text-slate-400 uppercase font-black">Seletividade Alimentar</p>
-                          <p className="text-sm font-bold text-slate-700">{questionario.seletividadeAlimentar?.detalhes || 'Não'}</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.seletividadeAlimentar?.detalhes || 'Não relatada'}</p>
                         </div>
                       </div>
                     </div>
 
+                    {/* Nutrição e Metabolismo */}
+                    <div className="space-y-4 bg-emerald-50/30 p-5 rounded-2xl border border-emerald-100">
+                      <h4 className="flex items-center gap-2 text-emerald-600 font-black uppercase text-[10px] tracking-widest"><Utensils size={16}/> Nutrição e Metabolismo</h4>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Encaminhamento Nutricionista</p>
+                          <div className="mt-1">
+                            {(imcAtual > 30 || questionario.encaminhamentoNutricionista === 'sim') ? (
+                              <span className="flex items-center gap-1 text-[10px] font-black text-red-600 uppercase animate-pulse">
+                                <ShieldAlert size={14}/> Recomendado / Prioritário
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-emerald-600 uppercase">Não prioritário</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                          <p className="text-[9px] text-slate-400 uppercase font-black">Observações Nutricionais</p>
+                          <p className="text-sm font-bold text-slate-700">{questionario.observacaoNutricionista || 'Sem observações registradas.'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sono e Rotina */}
                     <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
                       <h4 className="flex items-center gap-2 text-slate-600 font-black uppercase text-[10px] tracking-widest"><Moon size={16}/> Sono e Rotina</h4>
                       <div className="space-y-3">

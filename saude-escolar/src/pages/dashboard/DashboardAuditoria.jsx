@@ -1,148 +1,218 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useAuditoriaData } from '../../hooks/useAuditoriaData'; 
-import { Loader2, RefreshCw, Activity, AlertTriangle, Brain, HeartPulse, ShieldAlert } from 'lucide-react';
+import { 
+  Loader2, RefreshCw, Activity, Brain, HeartPulse, 
+  ShieldAlert, FileText, Users, Utensils, Baby, UserMinus 
+} from 'lucide-react';
 
 const DashboardAuditoria = () => {
   const { user } = useAuth();
-  
-  // ⚡️ Hook econômico (Cache 5min)
-  // Certifique-se que o hook retorne { atendimentos: [], alunos: [], questionarios: [], loading: boolean }
+  // Puxando as coleções completas do hook RS
   const { atendimentos = [], alunos = [], questionarios = [], loading } = useAuditoriaData(user);
+  const [abaAtiva, setAbaAtiva] = useState('geral');
 
-  // 📊 Lógica de Auditoria Populacional (Normalização RS)
-  const stats = useMemo(() => {
-    // Se estiver carregando e não houver dados, retorna zeros para evitar erro de undefined
-    if (loading && !atendimentos.length && !alunos.length) return null;
+  // 📊 MOTOR DE AUDITORIA CROSS-DATA (MULTI-COLEÇÃO)
+  const grupos = useMemo(() => {
+    if (loading && !alunos.length) return null;
 
-    try {
-        // Normalização Global (Caio Giromba Style: lowercase + sem acento)
-        const baseSaude = [...alunos, ...questionarios].map(d => 
-          JSON.stringify(d).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        );
+    const listas = {
+      gestantes: [],
+      soMae: [],
+      nutri: [],
+      pcd: [],
+      totalAlunos: alunos.length,
+      totalAtendimentos: atendimentos.length
+    };
 
-        const check = (termos) => {
-          return baseSaude.filter(d => 
-            termos.some(t => {
-              const termoClean = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-              return d.includes(termoClean);
-            })
-          ).length;
-        };
+    // Indexação rápida de questionários por alunoId para não pesar o loop
+    const mapaQuest = new Map();
+    questionarios.forEach(q => mapaQuest.set(q.alunoId, q));
 
-        return {
-          totalAtendimentos: atendimentos.length,
-          alergias: check(['alergia', 'alergico', 'anafilatico', 'restricao']),
-          pcd: check(['pcd', 'neuro', 'autismo', 'tea', 'down', 'asperger', 'deficiencia']),
-          cronicos: check(['diabetes', 'hiperten', 'asma', 'pressao', 'cardiaco', 'epilep', 'bronquite']),
-          totalProntuarios: alunos.length + questionarios.length
-        };
-    } catch (e) {
-        console.error("Erro no processamento da auditoria:", e);
-        return { totalAtendimentos: 0, alergias: 0, pcd: 0, cronicos: 0, totalProntuarios: 0 };
-    }
+    alunos.forEach(aluno => {
+      const q = mapaQuest.get(aluno.id);
+      
+      // Normalização para busca (Lowercase RS Standard)
+      const busca = `
+        ${aluno.diagnostico || ''} 
+        ${aluno.observacoes || ''} 
+        ${q?.anamnese || ''} 
+        ${q?.saude?.detalhes || ''} 
+        ${q?.saude?.cids?.join(' ') || ''}
+      `.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      // 1. GESTANTES (Checa aluno e questionário)
+      if (['gravida', 'gestante', 'gestacao', 'pre-natal'].some(t => busca.includes(t))) {
+        listas.gestantes.push(aluno);
+      }
+
+      // 2. FILTRO SÓ MÃE (Exclusivo da coleção Alunos)
+      const paiLimpo = (aluno.pai || "").toLowerCase();
+      const semPai = !aluno.pai || paiLimpo.includes("nao declarado") || paiLimpo === "n/d" || paiLimpo.trim() === "";
+      if (aluno.mae && semPai) {
+        listas.soMae.push(aluno);
+      }
+
+      // 3. NUTRIÇÃO (IMC do questionário + termos de risco)
+      const imc = parseFloat(q?.imc || aluno.imc || 0);
+      const precisaNutri = imc > 30 || (imc > 0 && imc < 18.5) || 
+                           ['nutri', 'obesidade', 'seletividade', 'alimentar', 'baixo peso'].some(t => busca.includes(t));
+      if (precisaNutri) {
+        listas.nutri.push({ ...aluno, imcRef: imc });
+      }
+
+      // 4. PCD / NEURO
+      if (['pcd', 'deficiente', 'tea', 'autismo', 'cadeirante', 'down', 'neuro'].some(t => busca.includes(t))) {
+        listas.pcd.push(aluno);
+      }
+    });
+
+    return listas;
   }, [atendimentos, alunos, questionarios, loading]);
 
-  // TELA DE CARREGAMENTO (Protegida)
-  if (loading && !stats) {
+  if (loading && !grupos) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 space-y-4 animate-pulse">
+      <div className="flex flex-col items-center justify-center h-96 space-y-4">
         <Loader2 className="animate-spin text-blue-600" size={40} />
-        <p className="text-[10px] font-black uppercase italic tracking-[0.3em] text-slate-400 text-center">
-          Sincronizando Auditoria RS...<br/>
-          <span className="opacity-50 font-bold tracking-normal">(Aguardando resposta do Firebase)</span>
-        </p>
+        <p className="text-[10px] font-black uppercase italic tracking-[0.3em] text-slate-400">Cruzando Coleções...</p>
       </div>
     );
   }
 
-  // TELA DE ERRO (Caso o hook falhe e não traga dados)
-  if (!stats) {
-    return (
-        <div className="flex flex-col items-center justify-center h-96 text-slate-400">
-            <ShieldAlert size={40} className="mb-4 text-rose-500" />
-            <p className="text-[10px] font-black uppercase italic tracking-widest">Nenhum dado encontrado para auditoria</p>
-            <button onClick={() => window.location.reload()} className="mt-4 text-blue-600 text-[10px] font-bold uppercase underline">Tentar novamente</button>
-        </div>
-    );
-  }
+  if (!grupos) return null;
 
-  const cards = [
-    { label: 'Fluxo de Atendimentos', val: stats.totalAtendimentos, color: 'text-slate-900', icon: <Activity />, bg: 'bg-white' },
-    { label: 'Riscos de Alergia', val: stats.alergias, color: 'text-rose-600', icon: <AlertTriangle />, bg: 'bg-rose-50' },
-    { label: 'PCD / Neurodiversos', val: stats.pcd, color: 'text-blue-600', icon: <Brain />, bg: 'bg-blue-50' },
-    { label: 'Monitoramento Crônico', val: stats.cronicos, color: 'text-emerald-600', icon: <HeartPulse />, bg: 'bg-emerald-50' },
-  ];
+  const RenderLista = ({ titulo, dados, cor, tipo }) => (
+    <div className="mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] ${cor}`}>{titulo} ({dados.length})</h3>
+      </div>
+      <div className="overflow-hidden border border-slate-100 rounded-[30px] bg-white shadow-sm">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-100">
+            <tr>
+              <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-400">Aluno</th>
+              <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-400">Turma</th>
+              <th className="px-6 py-4 text-[9px] font-black uppercase text-slate-400">
+                {tipo === 'nutri' ? 'Índice IMC' : 'Info Detectada'}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {dados.length > 0 ? dados.map((aluno, i) => (
+              <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                <td className="px-6 py-4 text-[11px] font-bold text-slate-700 uppercase">{aluno.alunoNome}</td>
+                <td className="px-6 py-4 text-[11px] font-medium text-slate-500 uppercase">{aluno.turma || '---'}</td>
+                <td className="px-6 py-4 text-[10px] text-slate-400 font-bold italic uppercase">
+                  {tipo === 'nutri' ? (aluno.imcRef || 'Avaliar') : (aluno.diagnostico || 'Ver Prontuário')}
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan="3" className="px-6 py-12 text-center text-slate-300 text-[10px] font-black uppercase italic tracking-widest">Nenhum dado encontrado nas coleções</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-4 md:p-0 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="p-4 md:p-0 space-y-8 animate-in fade-in duration-700">
       
       {/* HEADER */}
       <div className="border-b border-slate-500/10 pb-8 flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
           <h1 className="text-4xl md:text-6xl font-[1000] italic tracking-tighter uppercase text-slate-900 leading-none">
-            Auditoria <span className="text-blue-600">Clínica</span>
+            Auditoria<span className="text-blue-600"></span>
           </h1>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-3">
-            Análise Populacional — {user?.unidade || 'Unidade Local'} — MedSys 2026
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-3 italic">
+            {user?.unidade || 'Unidade Local'} — Inteligência Cross-Data
           </p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-xl">
-            <p className="text-[8px] font-black uppercase tracking-widest opacity-50">Base Ativa</p>
-            <p className="text-xl font-black italic">#{stats.totalProntuarios}</p>
-          </div>
-          <button 
-            onClick={() => { 
-                localStorage.removeItem(`cache_auditoria_${user.unidadeid}`);
-                localStorage.removeItem(`last_fetch_${user.unidadeid}`); 
-                window.location.reload(); 
-            }}
-            className="p-3 bg-slate-100 hover:bg-blue-100 text-slate-400 hover:text-blue-600 rounded-2xl transition-all"
-            title="Recarregar Dados"
-          >
+        <div className="flex items-center gap-3 print:hidden">
+          <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-600 transition-all shadow-xl">
+            <FileText size={16} /> Imprimir Listagem
+          </button>
+          <button onClick={() => window.location.reload()} className="p-3 bg-slate-100 text-slate-400 rounded-2xl">
             <RefreshCw size={20} />
           </button>
         </div>
       </div>
 
-      {/* CARDS DE IMPACTO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-        {cards.map((card, i) => (
-          <div key={i} className={`${card.bg} border border-slate-200 p-8 rounded-[40px] flex flex-col justify-between h-52 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300`}>
-            <div className="flex justify-between items-start">
-               <span className={`p-3 rounded-2xl shadow-sm border border-slate-50 ${card.color} bg-white`}>
-                 {React.cloneElement(card.icon, { size: 24 })}
-               </span>
-            </div>
-            <div>
-              <p className={`${card.color} text-6xl font-[1000] italic leading-none tracking-tighter`}>{card.val}</p>
-              <p className="text-[10px] font-black text-slate-500 uppercase mt-4 tracking-widest">{card.label}</p>
-            </div>
-          </div>
+      {/* ABAS */}
+      <div className="flex flex-wrap gap-2 print:hidden">
+        {[
+          { id: 'geral', label: 'Dashboard', icon: <Activity size={14}/> },
+          { id: 'gestante', label: 'Gestantes', icon: <Baby size={14}/> },
+          { id: 'mae', label: 'Só Mãe', icon: <UserMinus size={14}/> },
+          { id: 'nutri', label: 'Nutrição', icon: <Utensils size={14}/> },
+          { id: 'pcd', label: 'PCD/Neuro', icon: <Brain size={14}/> },
+        ].map((aba) => (
+          <button
+            key={aba.id}
+            onClick={() => setAbaAtiva(aba.id)}
+            className={`flex items-center gap-2 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+              abaAtiva === aba.id ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100 hover:bg-slate-50'
+            }`}
+          >
+            {aba.icon} {aba.label}
+          </button>
         ))}
       </div>
 
-      {/* FOOTER DE INTELIGÊNCIA */}
-      <div className="bg-slate-900 p-8 rounded-[40px] relative overflow-hidden shadow-2xl">
-        <div className="relative z-10">
-            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-              </span>
-              Motor de Economia Ativo (Cache 5min)
-            </p>
-            <p className="text-slate-400 text-sm mt-4 font-medium leading-relaxed max-w-2xl">
-              Análise baseada em <span className="text-white font-bold">{stats.totalAtendimentos} eventos</span> clínicos. 
-              O sistema ignorou acentuação e capitalização (r s) para consolidar os grupos de risco com precisão cirúrgica.
-            </p>
+      {/* CARDS OU LISTAS */}
+      {abaAtiva === 'geral' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="bg-white border border-slate-200 p-8 rounded-[40px] shadow-sm">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Base Alunos</p>
+             <p className="text-6xl font-[1000] italic text-slate-900 tracking-tighter leading-none">{grupos.totalAlunos}</p>
+          </div>
+          <div className="bg-rose-50 border border-rose-100 p-8 rounded-[40px] shadow-sm">
+             <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-4 flex items-center gap-2"><HeartPulse size={14}/> Gestantes</p>
+             <p className="text-6xl font-[1000] italic text-rose-600 tracking-tighter leading-none">{grupos.gestantes.length}</p>
+          </div>
+          <div className="bg-purple-50 border border-purple-100 p-8 rounded-[40px] shadow-sm">
+             <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-2"><ShieldAlert size={14}/> Só Mãe</p>
+             <p className="text-6xl font-[1000] italic text-purple-600 tracking-tighter leading-none">{grupos.soMae.length}</p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-[40px] shadow-sm">
+             <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Utensils size={14}/> Nutrição</p>
+             <p className="text-6xl font-[1000] italic text-emerald-600 tracking-tighter leading-none">{grupos.nutri.length}</p>
+          </div>
         </div>
-        <div className="absolute right-[-20px] bottom-[-20px] text-white/[0.03] text-9xl font-black italic select-none lowercase">
-          {user?.unidadeid?.substring(0,4) || 'root'}
+      ) : (
+        <>
+          {abaAtiva === 'gestante' && <RenderLista titulo="Alunas em Gestação" dados={grupos.gestantes} cor="text-rose-500" />}
+          {abaAtiva === 'mae' && <RenderLista titulo="Vínculo Monoparental (Só Mãe)" dados={grupos.soMae} cor="text-purple-500" />}
+          {abaAtiva === 'nutri' && <RenderLista titulo="Encaminhamento Nutricional" dados={grupos.nutri} cor="text-emerald-500" tipo="nutri" />}
+          {abaAtiva === 'pcd' && <RenderLista titulo="PCD e Neurodiversos" dados={grupos.pcd} cor="text-blue-500" />}
+        </>
+      )}
+
+      {/* FOOTER */}
+      <div className="bg-slate-900 p-8 rounded-[40px] relative overflow-hidden">
+        <div className="relative z-10">
+          <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
+             Motor de Auditoria Ativo — Maricá {new Date().getFullYear()}
+          </p>
+          <p className="text-slate-400 text-sm mt-4 font-medium max-w-2xl uppercase text-[11px]">
+            Dados consolidados de {grupos.totalAlunos} alunos e {questionarios.length} questionários de triagem.
+          </p>
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          nav, aside, button, .print-hidden { display: none !important; }
+          body { background: white !important; padding: 20px !important; }
+          .rounded-[40px], .rounded-[30px] { border-radius: 10px !important; border: 1px solid #eee !important; box-shadow: none !important; }
+          table { width: 100% !important; border-collapse: collapse; }
+          th { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; }
+          .bg-slate-900 { background-color: #000 !important; color: #fff !important; }
+        }
+      `}} />
     </div>
   );
 };
